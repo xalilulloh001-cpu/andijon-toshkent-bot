@@ -1,0 +1,157 @@
+TEXTS = {
+    'uz': {
+        # Umumiy
+        'start': "Assalomu alaykum! 👋\nAndijon ↔ Toshkent Taksi Botiga xush kelibsiz!\n\nTilni tanlang:",
+        'choose_lang': "Tilni tanlang / Выберите язык:",
+        'lang_set': "Til o'rnatildi ✅",
+        'main_menu': "🏠 Asosiy menyu",
+        'choose_role': "Siz kimsiniz?",
+        'role_passenger': "🧳 Yo'lovchi",
+        'role_driver': "🚗 Haydovchi",
+        'contact_request': "📱 Telefon raqamingizni yuboring:",
+        'contact_btn': "📱 Raqamni ulashish",
+        'name_request': "Ismingizni kiriting:",
+        'registered': "✅ Ro'yxatdan o'tdingiz!",
+
+        # Yo'lovchi
+        'choose_direction': "Yo'nalishni tanlang:",
+        'dir_and_tosh': "🚀 Andijon → Toshkent",
+        'dir_tosh_and': "🔙 Toshkent → Andijon",
+        'choose_seat_pos': "O'tirish joyini tanlang:",
+        'seat_front': "🪑 Oldi o'rindiq",
+        'seat_back': "💺 Orqa o'rindiq",
+        'choose_seat_count': "Nechta kishi?",
+        'choose_time': "Vaqtni tanlang:",
+        'time_now': "⚡ Hozir",
+        'time_today': "📅 Bugun (soat tanlash)",
+        'time_tomorrow': "📆 Ertaga (soat tanlash)",
+        'choose_hour_from': "Jo'nash vaqti (dan) - soatni kiriting (0-23):",
+        'choose_hour_to': "Jo'nash vaqti (gacha) - soatni kiriting (0-23):",
+        'location_request': "📍 Joylashuvingizni yuboring:",
+        'location_btn': "📍 Lokatsiya yuborish",
+        'request_sent': "✅ So'rovingiz qabul qilindi! Haydovchi topilganda xabar beramiz. 🚗",
+        'in_queue': "⏳ Siz navbatdasiz. Sabr qiling...",
+        'cancel_request': "❌ So'rovni bekor qilish",
+        'request_cancelled': "✅ So'rovingiz bekor qilindi.",
+        'driver_found': "🚗 Haydovchi topildi!\n\n👤 Ism: {name}\n📞 Tel: {phone}\n🚙 Mashina: {car}\n🔢 Raqam: {number}\n⭐ Reyting: {rating:.1f}\n\nHaydovchi siz bilan bog'lanadi!",
+
+        # Haydovchi
+        'driver_menu': "🚗 Haydovchi menyusi",
+        'register_driver': "📝 Haydovchi sifatida ro'yxatdan o'tish",
+        'car_model': "Mashina modelini kiriting (masalan: Nexia 3):",
+        'car_number': "Mashina raqamini kiriting (masalan: 30 A 123 AA):",
+        'car_color': "Mashina rangini kiriting:",
+        'driver_registered': "✅ Haydovchi sifatida ro'yxatdan o'tdingiz!",
+        'announce_trip': "🚀 Yo'nalish e'lon qilish",
+        'choose_seats': "Nechta yo'lovchi olasiz? (1-4):",
+        'trip_announced': "✅ E'lon qilindi! Mos yo'lovchilar qidirilmoqda...",
+        'no_passengers': "😔 Hozircha mos yo'lovchi topilmadi. Topilganda xabar beramiz!",
+        'passengers_found': "🎯 {count} ta yo'lovchi topildi!\n\nHar birini ko'rib chiqing:",
+        'passenger_card': "👤 {name}\n📞 {phone}\n💺 {seat_pos} | 👥 {seat_count} kishi\n📍 Masofa: {dist:.1f} km\n⭐ Reyting: {rating:.1f}",
+        'accept': "✅ Qabul",
+        'reject': "❌ Rad",
+        'passenger_accepted': "✅ Yo'lovchi qabul qilindi. Ular bilan bog'laning!",
+        'passenger_rejected': "❌ Rad etildi. Yo'lovchi navbatda qoldi.",
+        'finish_trip': "🏁 Safarni yakunlash",
+        'trip_finished': "✅ Safar yakunlandi! Yo'lovchilardan baho so'ralmoqda...",
+        'my_stats': "📊 Statistikam",
+        'stats_text': "📊 Statistika\n\n🚗 Jami safarlar: {total}\n📅 Bugun: {today}\n⭐ Reyting: {rating:.1f}",
+
+        # Reyting
+        'rate_driver': "⭐ Haydovchini baholang ({name}):",
+        'rating_saved': "✅ Bahoyingiz saqlandi! Rahmat!",
+
+        # Admin
+        'admin_menu': "👑 Admin paneli",
+        'admin_stats': "📊 Statistika",
+        'admin_broadcast': "📢 Xabar yuborish",
+        'admin_broadcast_input': "Yubormoqchi bo'lgan xabaringizni kiriting:",
+        'admin_broadcast_done': "✅ Xabar {count} ta foydalanuvchiga yuborildi.",
+        'block_user': "🚫 Foydalanuvchi ID kiriting (bloklash):",
+        'user_blocked': "✅ Foydalanuvchi bloklandi.",
+        'not_registered': "Iltimos avval ro'yxatdan o'ting. /start",
+        'error': "❌ Xatolik yuz berdi. Qayta urinib ko'ring.",
+        'back': "🔙 Orqaga",
+    },
+    'ru': {
+        # Общее
+        'start': "Здравствуйте! 👋\nДобро пожаловать в Такси Бот Андижан ↔ Ташкент!\n\nВыберите язык:",
+        'choose_lang': "Выберите язык / Tilni tanlang:",
+        'lang_set': "Язык установлен ✅",
+        'main_menu': "🏠 Главное меню",
+        'choose_role': "Кто вы?",
+        'role_passenger': "🧳 Пассажир",
+        'role_driver': "🚗 Водитель",
+        'contact_request': "📱 Отправьте ваш номер телефона:",
+        'contact_btn': "📱 Поделиться номером",
+        'name_request': "Введите ваше имя:",
+        'registered': "✅ Вы зарегистрированы!",
+
+        # Пассажир
+        'choose_direction': "Выберите направление:",
+        'dir_and_tosh': "🚀 Андижан → Ташкент",
+        'dir_tosh_and': "🔙 Ташкент → Андижан",
+        'choose_seat_pos': "Выберите место:",
+        'seat_front': "🪑 Переднее сиденье",
+        'seat_back': "💺 Заднее сиденье",
+        'choose_seat_count': "Сколько человек?",
+        'choose_time': "Выберите время:",
+        'time_now': "⚡ Сейчас",
+        'time_today': "📅 Сегодня (выбрать час)",
+        'time_tomorrow': "📆 Завтра (выбрать час)",
+        'choose_hour_from': "Время отправления (от) - введите час (0-23):",
+        'choose_hour_to': "Время отправления (до) - введите час (0-23):",
+        'location_request': "📍 Отправьте ваше местоположение:",
+        'location_btn': "📍 Отправить локацию",
+        'request_sent': "✅ Ваш запрос принят! Сообщим когда найдём водителя. 🚗",
+        'in_queue': "⏳ Вы в очереди. Пожалуйста, подождите...",
+        'cancel_request': "❌ Отменить запрос",
+        'request_cancelled': "✅ Ваш запрос отменён.",
+        'driver_found': "🚗 Водитель найден!\n\n👤 Имя: {name}\n📞 Тел: {phone}\n🚙 Авто: {car}\n🔢 Номер: {number}\n⭐ Рейтинг: {rating:.1f}\n\nВодитель свяжется с вами!",
+
+        # Водитель
+        'driver_menu': "🚗 Меню водителя",
+        'register_driver': "📝 Зарегистрироваться как водитель",
+        'car_model': "Введите модель авто (напр: Nexia 3):",
+        'car_number': "Введите номер авто (напр: 30 A 123 AA):",
+        'car_color': "Введите цвет авто:",
+        'driver_registered': "✅ Вы зарегистрированы как водитель!",
+        'announce_trip': "🚀 Объявить рейс",
+        'choose_seats': "Сколько пассажиров берёте? (1-4):",
+        'trip_announced': "✅ Объявлено! Ищем подходящих пассажиров...",
+        'no_passengers': "😔 Пока нет подходящих пассажиров. Сообщим когда найдём!",
+        'passengers_found': "🎯 Найдено {count} пассажиров!\n\nПросмотрите каждого:",
+        'passenger_card': "👤 {name}\n📞 {phone}\n💺 {seat_pos} | 👥 {seat_count} чел.\n📍 Расстояние: {dist:.1f} км\n⭐ Рейтинг: {rating:.1f}",
+        'accept': "✅ Принять",
+        'reject': "❌ Отказать",
+        'passenger_accepted': "✅ Пассажир принят. Свяжитесь с ним!",
+        'passenger_rejected': "❌ Отказано. Пассажир остался в очереди.",
+        'finish_trip': "🏁 Завершить поездку",
+        'trip_finished': "✅ Поездка завершена! Запрашиваем оценку у пассажиров...",
+        'my_stats': "📊 Моя статистика",
+        'stats_text': "📊 Статистика\n\n🚗 Всего поездок: {total}\n📅 Сегодня: {today}\n⭐ Рейтинг: {rating:.1f}",
+
+        # Рейтинг
+        'rate_driver': "⭐ Оцените водителя ({name}):",
+        'rating_saved': "✅ Ваша оценка сохранена! Спасибо!",
+
+        # Админ
+        'admin_menu': "👑 Панель администратора",
+        'admin_stats': "📊 Статистика",
+        'admin_broadcast': "📢 Рассылка",
+        'admin_broadcast_input': "Введите сообщение для рассылки:",
+        'admin_broadcast_done': "✅ Сообщение отправлено {count} пользователям.",
+        'block_user': "🚫 Введите ID пользователя (заблокировать):",
+        'user_blocked': "✅ Пользователь заблокирован.",
+        'not_registered': "Пожалуйста, сначала зарегистрируйтесь. /start",
+        'error': "❌ Произошла ошибка. Попробуйте снова.",
+        'back': "🔙 Назад",
+    }
+}
+
+
+def t(lang: str, key: str, **kwargs) -> str:
+    text = TEXTS.get(lang, TEXTS['uz']).get(key, TEXTS['uz'].get(key, key))
+    if kwargs:
+        return text.format(**kwargs)
+    return text
