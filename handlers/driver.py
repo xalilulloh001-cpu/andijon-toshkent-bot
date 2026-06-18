@@ -3,6 +3,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from datetime import datetime, timedelta
+import pytz
 
 import database as db
 from matching import find_best_matches
@@ -14,6 +15,17 @@ from keyboards import (
 from texts import t
 
 router = Router()
+
+TZ = pytz.timezone("Asia/Tashkent")
+
+DIRECTION_LABELS = {
+    'uz': {'andijon_toshkent': 'Andijon → Toshkent', 'toshkent_andijon': 'Toshkent → Andijon'},
+    'ru': {'andijon_toshkent': 'Андижан → Ташкент', 'toshkent_andijon': 'Ташкент → Андижан'},
+}
+STATUS_LABELS = {
+    'uz': {'waiting': '⏳ Kutilmoqda', 'matched': '✅ Topildi', 'completed': '🏁 Yakunlandi', 'cancelled': '❌ Bekor'},
+    'ru': {'waiting': '⏳ Ожидание', 'matched': '✅ Найден', 'completed': '🏁 Завершено', 'cancelled': '❌ Отменено'},
+}
 
 
 class DriverRegStates(StatesGroup):
@@ -30,9 +42,19 @@ class DriverTripStates(StatesGroup):
     sending_location = State()
 
 
+class EditCarStates(StatesGroup):
+    car_model = State()
+    car_number = State()
+    car_color = State()
+
+
 async def get_lang(user_id):
     user = await db.get_user(user_id)
     return user['lang'] if user else 'uz'
+
+
+def now_tashkent():
+    return datetime.now(TZ)
 
 
 # --- Ro'yxatdan o'tish ---
@@ -74,6 +96,52 @@ async def get_car_color(message: Message, state: FSMContext):
     await message.answer(t(lang, 'driver_registered'), reply_markup=driver_menu_keyboard(lang))
 
 
+# --- Mashina tahrirlash ---
+
+@router.message(F.text.in_(["🚙 Mashinani tahrirlash", "🚙 Изменить авто"]))
+async def start_edit_car(message: Message, state: FSMContext):
+    lang = await get_lang(message.from_user.id)
+    driver = await db.get_driver_info(message.from_user.id)
+    if not driver:
+        await message.answer(t(lang, 'register_driver'))
+        return
+    await state.set_state(EditCarStates.car_model)
+    await message.answer(
+        f"Hozirgi: {driver['car_model']} | {driver['car_number']} | {driver['car_color']}\n\n"
+        + t(lang, 'edit_car_model')
+    )
+
+
+@router.message(EditCarStates.car_model)
+async def edit_car_model(message: Message, state: FSMContext):
+    lang = await get_lang(message.from_user.id)
+    await state.update_data(car_model=message.text)
+    await state.set_state(EditCarStates.car_number)
+    await message.answer(t(lang, 'edit_car_number'))
+
+
+@router.message(EditCarStates.car_number)
+async def edit_car_number(message: Message, state: FSMContext):
+    lang = await get_lang(message.from_user.id)
+    await state.update_data(car_number=message.text.upper())
+    await state.set_state(EditCarStates.car_color)
+    await message.answer(t(lang, 'edit_car_color'))
+
+
+@router.message(EditCarStates.car_color)
+async def edit_car_color(message: Message, state: FSMContext):
+    lang = await get_lang(message.from_user.id)
+    data = await state.get_data()
+    await db.update_driver_car(
+        user_id=message.from_user.id,
+        car_model=data['car_model'],
+        car_number=data['car_number'],
+        car_color=message.text
+    )
+    await state.clear()
+    await message.answer(t(lang, 'car_updated'), reply_markup=driver_menu_keyboard(lang))
+
+
 # --- Trip e'lon qilish ---
 
 @router.message(F.text.in_(["🚀 Yo'nalish e'lon qilish", "🚀 Объявить рейс"]))
@@ -83,6 +151,13 @@ async def announce_trip(message: Message, state: FSMContext):
     if not driver:
         await message.answer(t(lang, 'register_driver'))
         return
+
+    # Faol trip borligini tekshirish
+    active = await db.get_active_trip(message.from_user.id)
+    if active:
+        await message.answer(t(lang, 'active_trip_exists'))
+        return
+
     await state.set_state(DriverTripStates.choosing_direction)
     await message.answer(t(lang, 'choose_direction'), reply_markup=direction_keyboard(lang))
 
@@ -108,7 +183,7 @@ async def driver_choose_seats(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.in_(["time_now", "time_today", "time_tomorrow"]), DriverTripStates.choosing_time)
 async def driver_choose_time(callback: CallbackQuery, state: FSMContext):
     lang = await get_lang(callback.from_user.id)
-    now = datetime.now()
+    now = now_tashkent()
 
     if callback.data == "time_now":
         await state.update_data(depart_time=now.isoformat())
@@ -133,7 +208,7 @@ async def driver_choose_hour(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     from datetime import date
     bd = date.fromisoformat(data['base_date'])
-    depart_time = datetime(bd.year, bd.month, bd.day, hour)
+    depart_time = TZ.localize(datetime(bd.year, bd.month, bd.day, hour))
     await state.update_data(depart_time=depart_time.isoformat())
     await state.set_state(DriverTripStates.sending_location)
     await callback.message.answer(t(lang, 'location_request'), reply_markup=location_keyboard(lang))
@@ -154,25 +229,57 @@ async def driver_receive_location(message: Message, state: FSMContext, bot: Bot)
         lat=message.location.latitude,
         lng=message.location.longitude
     )
-
     await state.clear()
     await message.answer(t(lang, 'trip_announced'), reply_markup=driver_menu_keyboard(lang))
 
-    # Matching boshlash
     await do_matching(bot, message.from_user.id, trip_id, data['direction'],
                       depart_time, data['seats'],
                       message.location.latitude, message.location.longitude, lang)
 
 
+@router.message(DriverTripStates.sending_location, F.text)
+async def driver_skip_location(message: Message, state: FSMContext, bot: Bot):
+    lang = await get_lang(message.from_user.id)
+    skip_texts = ["⏭ O'tkazib yuborish", "⏭ Пропустить"]
+    if message.text not in skip_texts:
+        await message.answer(t(lang, 'location_request'), reply_markup=location_keyboard(lang))
+        return
+
+    data = await state.get_data()
+    depart_time = datetime.fromisoformat(data['depart_time'])
+
+    trip_id = await db.create_driver_trip(
+        driver_id=message.from_user.id,
+        direction=data['direction'],
+        seats=data['seats'],
+        depart_time=depart_time,
+        lat=None,
+        lng=None
+    )
+    await state.clear()
+    await message.answer(t(lang, 'trip_announced'), reply_markup=driver_menu_keyboard(lang))
+
+    await do_matching(bot, message.from_user.id, trip_id, data['direction'],
+                      depart_time, data['seats'], None, None, lang)
+
+
 async def do_matching(bot: Bot, driver_id: int, trip_id: int, direction: str,
-                      depart_time: datetime, seats: int, lat: float, lng: float, lang: str):
+                      depart_time: datetime, seats: int, lat, lng, lang: str):
     same = await db.get_waiting_passengers(direction, depart_time)
     opposite_dir = 'toshkent_andijon' if direction == 'andijon_toshkent' else 'andijon_toshkent'
     opposite = await db.get_waiting_passengers_extended(opposite_dir, depart_time)
 
-    matched = find_best_matches(lat, lng, direction, seats,
-                                [dict(p) for p in same],
-                                [dict(p) for p in opposite])
+    # lat/lng bo'lmasa masofasiz matching
+    if lat and lng:
+        matched = find_best_matches(lat, lng, direction, seats,
+                                    [dict(p) for p in same],
+                                    [dict(p) for p in opposite])
+    else:
+        # Lokatsiyasiz: vaqt bo'yicha birinchi N ta
+        all_passengers = [dict(p) for p in same]
+        for p in all_passengers:
+            p['_distance'] = 0.0
+        matched = all_passengers[:seats]
 
     if not matched:
         await bot.send_message(driver_id, t(lang, 'no_passengers'))
@@ -180,28 +287,25 @@ async def do_matching(bot: Bot, driver_id: int, trip_id: int, direction: str,
 
     await bot.send_message(driver_id, t(lang, 'passengers_found', count=len(matched)))
 
-    driver_info = await db.get_driver_info(driver_id)
-
     for p in matched:
-        seat_pos_text = "Oldi 🪑" if p['seat_position'] == 'front' else "Orqa 💺"
+        seat_pos_text = ("Oldi 🪑" if lang == 'uz' else "Перед 🪑") if p['seat_position'] == 'front' \
+            else ("Orqa 💺" if lang == 'uz' else "Зад 💺")
         card = t(lang, 'passenger_card',
                  name=p['full_name'],
                  phone=p['phone'],
                  seat_pos=seat_pos_text,
                  seat_count=p['seat_count'],
-                 dist=p['_distance'],
+                 dist=p.get('_distance', 0.0),
                  rating=p['rating'] or 5.0)
 
-        location_url = f"https://maps.google.com/maps?q={p['lat']},{p['lng']}"
-        card += f"\n🗺 <a href='{location_url}'>Xaritada ko'rish</a>"
+        if p.get('lat') and p.get('lng'):
+            card += f"\n🗺 <a href='https://maps.google.com/maps?q={p['lat']},{p['lng']}'>Xaritada ko'rish</a>"
 
         await bot.send_message(
             driver_id, card,
             reply_markup=accept_reject_keyboard(p['id'], trip_id),
             parse_mode="HTML"
         )
-
-        # Match qilish
         await db.match_passenger_to_trip(p['id'], trip_id)
 
 
@@ -210,34 +314,32 @@ async def do_matching(bot: Bot, driver_id: int, trip_id: int, direction: str,
 @router.callback_query(F.data.startswith("accept_"))
 async def accept_passenger(callback: CallbackQuery, bot: Bot):
     lang = await get_lang(callback.from_user.id)
-    _, passenger_id, trip_id = callback.data.split("_")
-    passenger_id, trip_id = int(passenger_id), int(trip_id)
+    parts = callback.data.split("_")
+    passenger_req_id, trip_id = int(parts[1]), int(parts[2])
 
     driver_info = await db.get_driver_info(callback.from_user.id)
-    passenger = await db.get_user(
-        (await db.pool.acquire().__aenter__() if False else None) or passenger_id
-    )
 
-    # Haydovchi ma'lumotini yo'lovchiga yuborish
     async with db.pool.acquire() as conn:
-        p = await conn.fetchrow("SELECT user_id, lang FROM passenger_requests pr JOIN users u ON u.id=pr.user_id WHERE pr.id=$1", passenger_id)
+        p = await conn.fetchrow(
+            "SELECT pr.user_id, u.lang FROM passenger_requests pr JOIN users u ON u.id=pr.user_id WHERE pr.id=$1",
+            passenger_req_id
+        )
 
     if p:
-        p_lang = p['lang']
         from handlers.passenger import notify_passenger_driver_found
-        await notify_passenger_driver_found(bot, p['user_id'], dict(driver_info), p_lang)
+        await notify_passenger_driver_found(bot, p['user_id'], dict(driver_info), p['lang'])
 
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer(t(lang, 'passenger_accepted'), show_alert=True)
 
 
 @router.callback_query(F.data.startswith("reject_"))
-async def reject_passenger(callback: CallbackQuery):
+async def reject_passenger_cb(callback: CallbackQuery):
     lang = await get_lang(callback.from_user.id)
-    _, passenger_id, trip_id = callback.data.split("_")
-    passenger_id = int(passenger_id)
+    parts = callback.data.split("_")
+    passenger_req_id = int(parts[1])
 
-    await db.reject_passenger(passenger_id)
+    await db.reject_passenger(passenger_req_id)
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer(t(lang, 'passenger_rejected'), show_alert=True)
 
@@ -248,14 +350,15 @@ async def reject_passenger(callback: CallbackQuery):
 async def finish_trip(message: Message, bot: Bot):
     lang = await get_lang(message.from_user.id)
 
+    # To'g'rilangan SQL — operator ustuvorligi muammosi hal qilindi
     async with db.pool.acquire() as conn:
         trip = await conn.fetchrow(
-            "SELECT id FROM driver_trips WHERE driver_id=$1 AND status='waiting' OR status='active' ORDER BY created_at DESC LIMIT 1",
+            "SELECT id FROM driver_trips WHERE driver_id=$1 AND (status='waiting' OR status='active') ORDER BY created_at DESC LIMIT 1",
             message.from_user.id
         )
 
     if not trip:
-        await message.answer("Faol safar topilmadi." if lang == 'uz' else "Активная поездка не найдена.")
+        await message.answer(t(lang, 'no_active_trip'))
         return
 
     passenger_ids = await db.complete_trip(trip['id'])
@@ -284,9 +387,13 @@ async def save_rating(callback: CallbackQuery):
     parts = callback.data.split("_")
     driver_id, trip_id, stars = int(parts[1]), int(parts[2]), int(parts[3])
 
-    await db.save_rating(callback.from_user.id, driver_id, trip_id, stars)
+    saved = await db.save_rating(callback.from_user.id, driver_id, trip_id, stars)
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer(t(lang, 'rating_saved'), show_alert=True)
+
+    if saved:
+        await callback.answer(t(lang, 'rating_saved'), show_alert=True)
+    else:
+        await callback.answer(t(lang, 'rate_already'), show_alert=True)
 
 
 # --- Statistika ---
@@ -295,7 +402,14 @@ async def save_rating(callback: CallbackQuery):
 async def my_stats(message: Message):
     lang = await get_lang(message.from_user.id)
     stats = await db.get_driver_stats(message.from_user.id)
-    await message.answer(t(lang, 'stats_text',
-                           total=stats['total'],
-                           today=stats['today'],
-                           rating=stats['rating'] or 5.0))
+    await message.answer(
+        t(lang, 'stats_text',
+          total=stats['total'],
+          today=stats['today'],
+          rating=stats['rating'] or 5.0,
+          rating_count=stats['rating_count'] or 0),
+        parse_mode="HTML"
+    )
+
+
+# --- Tarix (haydovchi uchun ham passenger.py da ishlaydi) ---
