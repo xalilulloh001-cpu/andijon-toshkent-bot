@@ -428,3 +428,116 @@ async def save_rating(from_user, to_user, group_id, stars, comment=None):
             WHERE id=$1
         """, to_user)
         return True
+
+
+# ─── O'RINDIQ TEKSHIRUVI (YANGI) ─────────────────────────
+
+async def add_match_members(group_id: int, passenger_queue_ids: list, seat_overrides: dict = None):
+    """
+    Yo'lovchilarni guruhga qo'shadi.
+    seat_overrides: {pq_id: 'front'|'back'} — matching tomonidan belgilangan haqiqiy o'rindiq
+    """
+    if seat_overrides is None:
+        seat_overrides = {}
+    async with pool.acquire() as conn:
+        for i, pq_id in enumerate(passenger_queue_ids):
+            await conn.execute("""
+                INSERT INTO match_members(group_id, passenger_queue_id, sort_order)
+                VALUES($1, $2, $3)
+                ON CONFLICT DO NOTHING
+            """, group_id, pq_id, i)
+            await conn.execute(
+                "UPDATE passenger_queue SET status='matched' WHERE id=$1", pq_id
+            )
+            # Agar seat_override bo'lsa — passenger_queue dagi seat_position ni yangilaymiz
+            if pq_id in seat_overrides and seat_overrides[pq_id]:
+                await conn.execute(
+                    "UPDATE passenger_queue SET seat_position=$1 WHERE id=$2",
+                    seat_overrides[pq_id], pq_id
+                )
+
+
+async def check_back_seat_available(group_id: int) -> tuple:
+    """
+    Guruhda orqa o'rindiq bo'sh ekanligini atomik tekshiradi.
+    Qaytaradi: (bool, sabab)
+    """
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Driver seats olish
+            dq = await conn.fetchrow("""
+                SELECT dq.seats FROM driver_queue dq
+                JOIN match_groups mg ON mg.driver_queue_id = dq.id
+                WHERE mg.id = $1
+            """, group_id)
+            if not dq:
+                return False, "Guruh topilmadi"
+
+            total_seats = dq['seats']
+            back_cap = max(1, total_seats - 1)
+
+            # Hozirgi orqa o'rindiq bandligi
+            back_used = await conn.fetchval("""
+                SELECT COALESCE(SUM(pq.seat_count), 0)
+                FROM match_members mm
+                JOIN passenger_queue pq ON pq.id = mm.passenger_queue_id
+                WHERE mm.group_id = $1
+                  AND pq.seat_position = 'back'
+                  AND mm.call_status NOT IN ('rejected', 'timeout')
+            """, group_id)
+
+            if back_used >= back_cap:
+                return False, f"Orqa o'rindiq to'liq band ({back_cap}/{back_cap})"
+            return True, f"Bo'sh joy: {back_cap - back_used} ta"
+
+
+async def get_seat_summary(group_id: int) -> dict:
+    """Guruhning o'rindiq holatini qaytaradi"""
+    async with pool.acquire() as conn:
+        dq = await conn.fetchrow("""
+            SELECT dq.seats FROM driver_queue dq
+            JOIN match_groups mg ON mg.driver_queue_id = dq.id
+            WHERE mg.id = $1
+        """, group_id)
+        total = dq['seats'] if dq else 4
+
+        rows = await conn.fetch("""
+            SELECT pq.seat_position, COALESCE(SUM(pq.seat_count), 0) as cnt
+            FROM match_members mm
+            JOIN passenger_queue pq ON pq.id = mm.passenger_queue_id
+            WHERE mm.group_id = $1
+              AND mm.call_status NOT IN ('rejected', 'timeout')
+            GROUP BY pq.seat_position
+        """, group_id)
+
+        front_used = next((r['cnt'] for r in rows if r['seat_position'] == 'front'), 0)
+        back_used  = next((r['cnt'] for r in rows if r['seat_position'] == 'back'), 0)
+
+        return {
+            'total': total,
+            'front_cap': 1,
+            'back_cap': max(1, total - 1),
+            'front_used': front_used,
+            'back_used': back_used,
+            'front_free': max(0, 1 - front_used),
+            'back_free': max(0, (total - 1) - back_used),
+        }
+
+
+async def get_passenger_queue_entry_by_id(pq_id: int):
+    async with pool.acquire() as conn:
+        return await conn.fetchrow("""
+            SELECT pq.*, u.full_name, u.phone
+            FROM passenger_queue pq
+            JOIN users u ON u.id = pq.user_id
+            WHERE pq.id = $1
+        """, pq_id)
+
+
+async def get_driver_queue_by_group(group_id: int):
+    async with pool.acquire() as conn:
+        return await conn.fetchrow("""
+            SELECT dq.* FROM driver_queue dq
+            JOIN match_groups mg ON mg.driver_queue_id = dq.id
+            WHERE mg.id = $1
+        """, group_id)
