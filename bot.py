@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.fsm.storage.memory import MemoryStorage
 
 import database as db
@@ -12,6 +13,7 @@ from handlers import common, passenger, driver, admin
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+REDIS_URL = os.getenv("REDIS_URL", "")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,20 +24,25 @@ logger = logging.getLogger(__name__)
 
 async def main():
     bot = Bot(token=BOT_TOKEN)
-    storage = MemoryStorage()
+
+    # Redis mavjud bo'lsa RedisStorage, bo'lmasa MemoryStorage
+    if REDIS_URL:
+        storage = RedisStorage.from_url(REDIS_URL)
+        logger.info("✅ RedisStorage ishlatilmoqda")
+    else:
+        storage = MemoryStorage()
+        logger.warning("⚠️  MemoryStorage ishlatilmoqda (production uchun REDIS_URL qo'shing)")
+
     dp = Dispatcher(storage=storage)
 
-    # Routerlarni ulash
     dp.include_router(common.router)
     dp.include_router(passenger.router)
     dp.include_router(driver.router)
     dp.include_router(admin.router)
 
-    # Ma'lumotlar bazasini ishga tushirish
     await db.init_db()
     logger.info("✅ Database initialized")
 
-    # Botni ishga tushirish
     logger.info("🚀 Bot started!")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
