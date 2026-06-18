@@ -345,3 +345,96 @@ async def block_user(user_id: int):
 async def unblock_user(user_id: int):
     async with pool.acquire() as conn:
         await conn.execute("UPDATE users SET is_blocked=FALSE WHERE id=$1", user_id)
+
+
+# ─── O'rindiq tekshiruvi ───────────────────────────────────────────────────
+
+async def get_matched_passengers_for_trip(trip_id: int):
+    """Trip ga band qilingan barcha yo'lovchilarni qaytaradi"""
+    async with pool.acquire() as conn:
+        return await conn.fetch(
+            """SELECT pr.user_id, pr.seat_position, pr.seat_count, pr.status
+               FROM passenger_requests pr
+               WHERE pr.matched_trip_id = $1
+                 AND pr.status = 'matched'""",
+            trip_id
+        )
+
+
+async def get_seat_stats(trip_id: int, total_seats: int) -> dict:
+    """
+    Trip uchun o'rindiq statistikasini qaytaradi:
+    - front_booked: oldi o'rindiqda band joylar
+    - front_available: oldi o'rindiqda bo'sh joy (har doim max 1)
+    - back_booked: orqa o'rindiqda band joylar
+    - back_available: orqa o'rindiqda bo'sh joylar
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT seat_position, SUM(seat_count) as total
+               FROM passenger_requests
+               WHERE matched_trip_id = $1 AND status = 'matched'
+               GROUP BY seat_position""",
+            trip_id
+        )
+
+    stats = {"front_booked": 0, "back_booked": 0}
+    for row in rows:
+        if row["seat_position"] == "front":
+            stats["front_booked"] = row["total"]
+        else:
+            stats["back_booked"] = row["total"]
+
+    stats["front_available"] = max(0, 1 - stats["front_booked"])
+    stats["back_available"] = max(0, (total_seats - 1) - stats["back_booked"])
+    stats["total_available"] = stats["front_available"] + stats["back_available"]
+    return stats
+
+
+async def check_and_match_passenger(
+    passenger_req_id: int,
+    trip_id: int,
+    seat_position: str,
+    seat_count: int,
+    total_trip_seats: int
+) -> tuple[bool, str]:
+    """
+    Atomik tekshiruv + band qilish.
+    Race condition bo'lmasligi uchun FOR UPDATE lock ishlatiladi.
+    """
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Lock bilan hozirgi band joylarni olamiz
+            rows = await conn.fetch(
+                """SELECT seat_position, seat_count
+                   FROM passenger_requests
+                   WHERE matched_trip_id = $1
+                     AND status = 'matched'
+                   FOR UPDATE""",
+                trip_id
+            )
+
+            # Hisoblash
+            booked_front = sum(r["seat_count"] for r in rows if r["seat_position"] == "front")
+            booked_back  = sum(r["seat_count"] for r in rows if r["seat_position"] == "back")
+
+            front_cap = 1
+            back_cap  = max(1, total_trip_seats - 1)
+
+            if seat_position == "front":
+                if booked_front + seat_count > front_cap:
+                    avail = max(0, front_cap - booked_front)
+                    return False, f"Oldi o'rindiq to'liq band" if avail == 0 else f"Oldi o'rindiqda faqat {avail} ta joy bor"
+            else:
+                if booked_back + seat_count > back_cap:
+                    avail = max(0, back_cap - booked_back)
+                    return False, f"Orqa o'rindiq to'liq band" if avail == 0 else f"Orqa o'rindiqda faqat {avail} ta joy bor"
+
+            # Bo'sh — band qilamiz
+            await conn.execute(
+                """UPDATE passenger_requests
+                   SET status = 'matched', matched_trip_id = $1
+                   WHERE id = $2""",
+                trip_id, passenger_req_id
+            )
+            return True, "ok"
