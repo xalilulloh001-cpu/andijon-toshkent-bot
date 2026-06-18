@@ -1,31 +1,18 @@
+import asyncio
+from datetime import datetime, timedelta, timezone
 from aiogram import Router, F, Bot
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from datetime import datetime, timedelta
-import pytz
 
 import database as db
-from matching import find_best_matches
-from keyboards import (
-    direction_keyboard, driver_seats_keyboard, time_keyboard,
-    hours_keyboard, location_keyboard, driver_menu_keyboard,
-    accept_reject_keyboard, rating_keyboard
-)
+import matching as mx
+from keyboards import driver_menu_keyboard, direction_keyboard, driver_seats_keyboard
 from texts import t
 
 router = Router()
 
-TZ = pytz.timezone("Asia/Tashkent")
-
-DIRECTION_LABELS = {
-    'uz': {'andijon_toshkent': 'Andijon → Toshkent', 'toshkent_andijon': 'Toshkent → Andijon'},
-    'ru': {'andijon_toshkent': 'Андижан → Ташкент', 'toshkent_andijon': 'Ташкент → Андижан'},
-}
-STATUS_LABELS = {
-    'uz': {'waiting': '⏳ Kutilmoqda', 'matched': '✅ Topildi', 'completed': '🏁 Yakunlandi', 'cancelled': '❌ Bekor'},
-    'ru': {'waiting': '⏳ Ожидание', 'matched': '✅ Найден', 'completed': '🏁 Завершено', 'cancelled': '❌ Отменено'},
-}
+CALL_TIMEOUT = 5 * 60  # 5 daqiqa sekund
 
 
 class DriverRegStates(StatesGroup):
@@ -34,18 +21,15 @@ class DriverRegStates(StatesGroup):
     car_color = State()
 
 
-class DriverTripStates(StatesGroup):
-    choosing_direction = State()
-    choosing_seats = State()
-    choosing_time = State()
-    choosing_hour = State()
-    sending_location = State()
-
-
 class EditCarStates(StatesGroup):
     car_model = State()
     car_number = State()
     car_color = State()
+
+
+class QueueStates(StatesGroup):
+    choosing_direction = State()
+    choosing_seats = State()
 
 
 async def get_lang(user_id):
@@ -53,12 +37,7 @@ async def get_lang(user_id):
     return user['lang'] if user else 'uz'
 
 
-def now_tashkent():
-    return datetime.now(TZ)
-
-
-# --- Ro'yxatdan o'tish ---
-
+# ─── RO'YXATDAN O'TISH ────────────────────────────────────
 @router.message(F.text.in_(["📝 Haydovchi sifatida ro'yxatdan o'tish", "📝 Зарегистрироваться как водитель"]))
 async def start_driver_reg(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
@@ -86,30 +65,21 @@ async def get_car_number(message: Message, state: FSMContext):
 async def get_car_color(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
     data = await state.get_data()
-    await db.register_driver(
-        user_id=message.from_user.id,
-        car_model=data['car_model'],
-        car_number=data['car_number'],
-        car_color=message.text
-    )
+    await db.register_driver(message.from_user.id, data['car_model'], data['car_number'], message.text)
     await state.clear()
     await message.answer(t(lang, 'driver_registered'), reply_markup=driver_menu_keyboard(lang))
 
 
-# --- Mashina tahrirlash ---
-
+# ─── MASHINA TAHRIRLASH ───────────────────────────────────
 @router.message(F.text.in_(["🚙 Mashinani tahrirlash", "🚙 Изменить авто"]))
 async def start_edit_car(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
-    driver = await db.get_driver_info(message.from_user.id)
-    if not driver:
+    d = await db.get_driver_info(message.from_user.id)
+    if not d:
         await message.answer(t(lang, 'register_driver'))
         return
     await state.set_state(EditCarStates.car_model)
-    await message.answer(
-        f"Hozirgi: {driver['car_model']} | {driver['car_number']} | {driver['car_color']}\n\n"
-        + t(lang, 'edit_car_model')
-    )
+    await message.answer(f"Hozirgi: {d['car_model']} | {d['car_number']} | {d['car_color']}\n\n" + t(lang, 'edit_car_model'))
 
 
 @router.message(EditCarStates.car_model)
@@ -132,331 +102,356 @@ async def edit_car_number(message: Message, state: FSMContext):
 async def edit_car_color(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
     data = await state.get_data()
-    await db.update_driver_car(
-        user_id=message.from_user.id,
-        car_model=data['car_model'],
-        car_number=data['car_number'],
-        car_color=message.text
-    )
+    await db.update_driver_car(message.from_user.id, data['car_model'], data['car_number'], message.text)
     await state.clear()
     await message.answer(t(lang, 'car_updated'), reply_markup=driver_menu_keyboard(lang))
 
 
-# --- Trip e'lon qilish ---
-
+# ─── NAVBATGA TURISH ──────────────────────────────────────
 @router.message(F.text.in_(["🚀 Yo'nalish e'lon qilish", "🚀 Объявить рейс"]))
-async def announce_trip(message: Message, state: FSMContext):
+async def start_queue(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
     driver = await db.get_driver_info(message.from_user.id)
     if not driver:
         await message.answer(t(lang, 'register_driver'))
         return
-
-    # Faol trip borligini tekshirish
-    active = await db.get_active_trip(message.from_user.id)
+    active = await db.get_driver_active_group(message.from_user.id)
     if active:
-        await message.answer(t(lang, 'active_trip_exists'))
+        await message.answer("⚠️ Sizda faol guruh bor! Avval uni yakunlang." if lang == 'uz' else "⚠️ У вас есть активная группа!")
         return
-
-    await state.set_state(DriverTripStates.choosing_direction)
+    await state.set_state(QueueStates.choosing_direction)
     await message.answer(t(lang, 'choose_direction'), reply_markup=direction_keyboard(lang))
 
 
-@router.callback_query(F.data.startswith("dir_"), DriverTripStates.choosing_direction)
-async def driver_choose_direction(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data.startswith("dir_"), QueueStates.choosing_direction)
+async def choose_direction(callback: CallbackQuery, state: FSMContext):
     lang = await get_lang(callback.from_user.id)
     direction = callback.data.replace("dir_", "")
     await state.update_data(direction=direction)
-    await state.set_state(DriverTripStates.choosing_seats)
+    await state.set_state(QueueStates.choosing_seats)
     await callback.message.edit_text(t(lang, 'choose_seats'), reply_markup=driver_seats_keyboard())
 
 
 @router.callback_query(F.data.startswith("dseats_"))
-async def driver_choose_seats(callback: CallbackQuery, state: FSMContext):
+async def choose_seats(callback: CallbackQuery, state: FSMContext, bot: Bot):
     lang = await get_lang(callback.from_user.id)
     seats = int(callback.data.split("_")[1])
-    await state.update_data(seats=seats)
-    await state.set_state(DriverTripStates.choosing_time)
-    await callback.message.edit_text(t(lang, 'choose_time'), reply_markup=time_keyboard(lang))
-
-
-@router.callback_query(F.data.in_(["time_now", "time_today", "time_tomorrow"]), DriverTripStates.choosing_time)
-async def driver_choose_time(callback: CallbackQuery, state: FSMContext):
-    lang = await get_lang(callback.from_user.id)
-    now = now_tashkent()
-
-    if callback.data == "time_now":
-        await state.update_data(depart_time=now.isoformat())
-        await state.set_state(DriverTripStates.sending_location)
-        await callback.message.answer(t(lang, 'location_request'), reply_markup=location_keyboard(lang))
-        await callback.message.delete()
-    elif callback.data == "time_today":
-        await state.update_data(base_date=now.date().isoformat())
-        await state.set_state(DriverTripStates.choosing_hour)
-        await callback.message.edit_text(t(lang, 'choose_hour_from'), reply_markup=hours_keyboard("dhour"))
-    else:
-        tomorrow = (now + timedelta(days=1)).date()
-        await state.update_data(base_date=tomorrow.isoformat())
-        await state.set_state(DriverTripStates.choosing_hour)
-        await callback.message.edit_text(t(lang, 'choose_hour_from'), reply_markup=hours_keyboard("dhour"))
-
-
-@router.callback_query(F.data.startswith("dhour_"))
-async def driver_choose_hour(callback: CallbackQuery, state: FSMContext):
-    lang = await get_lang(callback.from_user.id)
-    hour = int(callback.data.split("_")[1])
     data = await state.get_data()
-    from datetime import date
-    bd = date.fromisoformat(data['base_date'])
-    depart_time = TZ.localize(datetime(bd.year, bd.month, bd.day, hour))
-    await state.update_data(depart_time=depart_time.isoformat())
-    await state.set_state(DriverTripStates.sending_location)
-    await callback.message.answer(t(lang, 'location_request'), reply_markup=location_keyboard(lang))
-    await callback.message.delete()
-
-
-@router.message(DriverTripStates.sending_location, F.location)
-async def driver_receive_location(message: Message, state: FSMContext, bot: Bot):
-    lang = await get_lang(message.from_user.id)
-    data = await state.get_data()
-    depart_time = datetime.fromisoformat(data['depart_time'])
-
-    trip_id = await db.create_driver_trip(
-        driver_id=message.from_user.id,
-        direction=data['direction'],
-        seats=data['seats'],
-        depart_time=depart_time,
-        lat=message.location.latitude,
-        lng=message.location.longitude
-    )
+    direction = data.get('direction', 'andijon_toshkent')
     await state.clear()
-    await message.answer(t(lang, 'trip_announced'), reply_markup=driver_menu_keyboard(lang))
 
-    await do_matching(bot, message.from_user.id, trip_id, data['direction'],
-                      depart_time, data['seats'],
-                      message.location.latitude, message.location.longitude, lang)
+    dq_id = await db.add_driver_to_queue(callback.from_user.id, direction, seats)
 
-
-@router.message(DriverTripStates.sending_location, F.text)
-async def driver_skip_location(message: Message, state: FSMContext, bot: Bot):
-    lang = await get_lang(message.from_user.id)
-    skip_texts = ["⏭ O'tkazib yuborish", "⏭ Пропустить"]
-    if message.text not in skip_texts:
-        await message.answer(t(lang, 'location_request'), reply_markup=location_keyboard(lang))
-        return
-
-    data = await state.get_data()
-    depart_time = datetime.fromisoformat(data['depart_time'])
-
-    trip_id = await db.create_driver_trip(
-        driver_id=message.from_user.id,
-        direction=data['direction'],
-        seats=data['seats'],
-        depart_time=depart_time,
-        lat=None,
-        lng=None
+    dir_txt = "Andijon → Toshkent" if direction == "andijon_toshkent" else "Toshkent → Andijon"
+    await callback.message.edit_text(
+        f"✅ Navbatga qo'shildingiz!\n\n"
+        f"🗺 {dir_txt}\n💺 {seats} ta o'rin\n\n"
+        f"⏳ Mos yo'lovchilar topilganda xabar beramiz..."
+        if lang == 'uz' else
+        f"✅ Вы в очереди!\n\n🗺 {dir_txt}\n💺 {seats} мест\n\n⏳ Сообщим когда найдём пассажиров..."
     )
-    await state.clear()
-    await message.answer(t(lang, 'trip_announced'), reply_markup=driver_menu_keyboard(lang))
+    await callback.message.answer(t(lang, 'driver_menu'), reply_markup=driver_menu_keyboard(lang))
 
-    await do_matching(bot, message.from_user.id, trip_id, data['direction'],
-                      depart_time, data['seats'], None, None, lang)
+    # Mos guruh topishga harakat
+    asyncio.create_task(try_match_driver(bot, dq_id, callback.from_user.id, direction, seats, lang))
 
 
-async def do_matching(bot: Bot, driver_id: int, trip_id: int, direction: str,
-                      depart_time: datetime, seats: int, lat, lng, lang: str):
-    same = await db.get_waiting_passengers(direction, depart_time)
-    opposite_dir = 'toshkent_andijon' if direction == 'andijon_toshkent' else 'andijon_toshkent'
-    opposite = await db.get_waiting_passengers_extended(opposite_dir, depart_time)
-
-    # lat/lng bo'lmasa masofasiz matching
-    if lat and lng:
-        matched = find_best_matches(lat, lng, direction, seats,
-                                    [dict(p) for p in same],
-                                    [dict(p) for p in opposite])
-    else:
-        # Lokatsiyasiz: vaqt bo'yicha birinchi N ta
-        all_passengers = [dict(p) for p in same]
-        for p in all_passengers:
-            p['_distance'] = 0.0
-        matched = all_passengers[:seats]
-
-    if not matched:
-        await bot.send_message(driver_id, t(lang, 'no_passengers'))
+async def try_match_driver(bot: Bot, dq_id: int, driver_user_id: int, direction: str, seats: int, lang: str):
+    """Haydovchi uchun mos yo'lovchilar guruhini topadi"""
+    waiting = await db.get_waiting_passengers(direction)
+    if not waiting:
         return
 
-    await bot.send_message(driver_id, t(lang, 'passengers_found', count=len(matched)))
-
-    for p in matched:
-        seat_pos_text = ("Oldi 🪑" if lang == 'uz' else "Перед 🪑") if p['seat_position'] == 'front' \
-            else ("Orqa 💺" if lang == 'uz' else "Зад 💺")
-        card = t(lang, 'passenger_card',
-                 name=p['full_name'],
-                 phone=p['phone'],
-                 seat_pos=seat_pos_text,
-                 seat_count=p['seat_count'],
-                 dist=p.get('_distance', 0.0),
-                 rating=p['rating'] or 5.0)
-
-        if p.get('lat') and p.get('lng'):
-            card += f"\n🗺 <a href='https://maps.google.com/maps?q={p['lat']},{p['lng']}'>Xaritada ko'rish</a>"
-
-        await bot.send_message(
-            driver_id, card,
-            reply_markup=accept_reject_keyboard(p['id'], trip_id),
-            parse_mode="HTML"
-        )
-        await db.match_passenger_to_trip(p['id'], trip_id)
-
-
-# --- Qabul / Rad ---
-
-@router.callback_query(F.data.startswith("accept_"))
-async def accept_passenger(callback: CallbackQuery, bot: Bot):
-    lang = await get_lang(callback.from_user.id)
-    parts = callback.data.split("_")
-    passenger_req_id, trip_id = int(parts[1]), int(parts[2])
-
-    # Yo'lovchi va trip ma'lumotlarini olamiz
-    async with db.pool.acquire() as conn:
-        p = await conn.fetchrow(
-            """SELECT pr.user_id, pr.seat_position, pr.seat_count, u.lang
-               FROM passenger_requests pr
-               JOIN users u ON u.id = pr.user_id
-               WHERE pr.id = $1""",
-            passenger_req_id
-        )
-        trip = await conn.fetchrow(
-            "SELECT seats FROM driver_trips WHERE id = $1", trip_id
-        )
-
-    if not p or not trip:
-        await callback.answer("❌ Ma'lumot topilmadi", show_alert=True)
+    passengers = [dict(p) for p in waiting]
+    group = mx.find_best_group(passengers, seats)
+    if not group:
         return
 
-    # O'rindiq tekshiruvi — atomik (race condition yo'q)
-    ok, reason = await db.check_and_match_passenger(
-        passenger_req_id=passenger_req_id,
-        trip_id=trip_id,
-        seat_position=p['seat_position'],
-        seat_count=p['seat_count'],
-        total_trip_seats=trip['seats']
+    # Guruh yaratish
+    group_id = await db.create_match_group(dq_id, direction)
+    pq_ids = [p['id'] for p in group]
+    await db.add_match_members(group_id, pq_ids)
+    await db.set_driver_queue_status(dq_id, 'matching')
+
+    # Haydovchiga guruh ro'yxatini yuborish
+    await send_group_list(bot, driver_user_id, group_id, lang)
+
+
+async def send_group_list(bot: Bot, driver_user_id: int, group_id: int, lang: str):
+    """Haydovchiga yo'lovchilar ro'yxatini yuboradi va birinchi qo'ng'iroqni boshlaydi"""
+    members = await db.get_group_members(group_id)
+    if not members:
+        return
+
+    lines = []
+    for i, m in enumerate(members):
+        nums = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
+        n = nums[i] if i < 4 else f"{i+1}."
+        loc = m['location_name'] or m['region'] or "Lokatsiya ko'rsatilmagan"
+        lines.append(f"{n} {m['full_name']} — {loc}\n   📞 {m['phone']} | ⭐ {m['rating']:.1f}")
+
+    text = (
+        f"🎯 {len(members)} ta yo'lovchi topildi!\n\n" + "\n\n".join(lines) +
+        "\n\n⏱ Har biriga 5 daqiqa vaqt beriladi. Qo'ng'iroq qilib tasdiqlang yoki rad eting."
     )
+    await bot.send_message(driver_user_id, text)
 
-    if not ok:
-        # O'rindiq band — haydovchiga xabar
-        seat_uz = "Oldi o'rindiq" if p['seat_position'] == 'front' else "Orqa o'rindiq"
-        await callback.answer(
-            f"⚠️ {reason}\n\n{seat_uz} uchun joy qolmadi.",
-            show_alert=True
-        )
-        # Kartochkani o'chirib, bekor qilinganligini ko'rsatamiz
-        try:
-            await callback.message.edit_text(
-                callback.message.text + f"\n\n⚠️ {reason}",
-                reply_markup=None
-            )
-        except Exception:
-            await callback.message.edit_reply_markup(reply_markup=None)
+    # Birinchi yo'lovchini chaqirish
+    await start_next_call(bot, driver_user_id, group_id, lang)
+
+
+async def start_next_call(bot: Bot, driver_user_id: int, group_id: int, lang: str):
+    """Keyingi kutayotgan yo'lovchiga qo'ng'iroq jarayonini boshlaydi"""
+    member = await db.get_next_pending_member(group_id)
+    if not member:
+        # Barcha ko'rib chiqildi
+        await finalize_group(bot, driver_user_id, group_id, lang)
         return
 
-    # O'rindiq bo'sh edi va band qilindi — yo'lovchiga xabar
-    driver_info = await db.get_driver_info(callback.from_user.id)
-    from handlers.passenger import notify_passenger_driver_found
-    await notify_passenger_driver_found(bot, p['user_id'], dict(driver_info), p['lang'])
+    deadline = datetime.now(timezone.utc) + timedelta(seconds=CALL_TIMEOUT)
+    await db.set_member_calling(member['id'], deadline)
 
-    await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer(t(lang, 'passenger_accepted'), show_alert=True)
+    loc = member['location_name'] or member.get('region') or "Lokatsiya yo'q"
+    seat_txt = "🪑 Oldi" if member['seat_position'] == 'front' else "💺 Orqa"
 
-    # Haydovchiga qolgan o'rindiqlar statistikasini ko'rsat
-    stats = await db.get_seat_stats(trip_id, trip['seats'])
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"confirm_m_{member['id']}_{group_id}"),
+        InlineKeyboardButton(text="❌ Rad etish", callback_data=f"reject_m_{member['id']}_{group_id}")
+    ]])
+
     await bot.send_message(
-        callback.from_user.id,
-        f"💺 <b>O'rindiq holati:</b>\n"
-        f"🪑 Oldi: {1 - stats['front_available']}/1 band\n"
-        f"💺 Orqa: {(trip['seats']-1) - stats['back_available']}/{trip['seats']-1} band\n"
-        f"✅ Jami bo'sh: {stats['total_available']} ta",
-        parse_mode="HTML"
+        driver_user_id,
+        f"📞 Qo'ng'iroq qiling:\n\n"
+        f"👤 {member['full_name']}\n"
+        f"📱 {member['phone']}\n"
+        f"📍 {loc}\n"
+        f"💺 {seat_txt} | {member['seat_count']} kishi\n"
+        f"⭐ {member['rating']:.1f}\n\n"
+        f"⏱ 5 daqiqa ichida qaror qiling:",
+        reply_markup=kb
     )
 
+    # 5 daqiqa timeout
+    asyncio.create_task(call_timeout_task(bot, driver_user_id, group_id, member['id'], lang))
 
-@router.callback_query(F.data.startswith("reject_"))
-async def reject_passenger_cb(callback: CallbackQuery):
+
+async def call_timeout_task(bot: Bot, driver_user_id: int, group_id: int, member_id: int, lang: str):
+    """5 daqiqa o'tsa avtomatik rad etish"""
+    await asyncio.sleep(CALL_TIMEOUT)
+
+    member = await db.get_next_pending_member(group_id)
+    # Agar hali ham 'calling' bo'lsa — timeout
+    async with db.pool.acquire() as conn:
+        cur = await conn.fetchrow("SELECT call_status FROM match_members WHERE id=$1", member_id)
+
+    if cur and cur['call_status'] == 'calling':
+        await db.timeout_member(member_id)
+        await bot.send_message(
+            driver_user_id,
+            "⏱ Vaqt tugadi! Yo'lovchi javob bermadi. Keyingi yo'lovchiga o'tamiz..."
+        )
+        await start_next_call(bot, driver_user_id, group_id, lang)
+
+
+# ─── TASDIQLASH / RAD ETISH ──────────────────────────────
+@router.callback_query(F.data.startswith("confirm_m_"))
+async def confirm_member(callback: CallbackQuery, bot: Bot):
     lang = await get_lang(callback.from_user.id)
     parts = callback.data.split("_")
-    passenger_req_id = int(parts[1])
+    member_id, group_id = int(parts[2]), int(parts[3])
 
-    await db.reject_passenger(passenger_req_id)
+    await db.confirm_member(member_id)
     await callback.message.edit_reply_markup(reply_markup=None)
-    await callback.answer(t(lang, 'passenger_rejected'), show_alert=True)
+    await callback.answer("✅ Tasdiqlandi!", show_alert=False)
+
+    confirmed = await db.count_confirmed(group_id)
+    pending = await db.count_pending(group_id)
+
+    await callback.message.answer(f"✅ Tasdiqlandi! ({confirmed} ta tasdiqlangan)")
+
+    if pending > 0:
+        await start_next_call(bot, callback.from_user.id, group_id, lang)
+    else:
+        await finalize_group(bot, callback.from_user.id, group_id, lang)
 
 
-# --- Safarni yakunlash ---
+@router.callback_query(F.data.startswith("reject_m_"))
+async def reject_member_cb(callback: CallbackQuery, bot: Bot):
+    lang = await get_lang(callback.from_user.id)
+    parts = callback.data.split("_")
+    member_id, group_id = int(parts[2]), int(parts[3])
 
-@router.message(F.text.in_(["🏁 Safarni yakunlash", "🏁 Завершить поездку"]))
-async def finish_trip(message: Message, bot: Bot):
-    lang = await get_lang(message.from_user.id)
+    await db.reject_member(member_id)
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer("❌ Rad etildi", show_alert=False)
+    await callback.message.answer("❌ Rad etildi. Keyingi yo'lovchiga o'tamiz...")
 
-    # To'g'rilangan SQL — operator ustuvorligi muammosi hal qilindi
-    async with db.pool.acquire() as conn:
-        trip = await conn.fetchrow(
-            "SELECT id FROM driver_trips WHERE driver_id=$1 AND (status='waiting' OR status='active') ORDER BY created_at DESC LIMIT 1",
-            message.from_user.id
-        )
+    # 30 daqiqa ichida o'sha hududdan yangi yo'lovchi qidirish
+    asyncio.create_task(wait_for_replacement(bot, callback.from_user.id, group_id, lang))
 
-    if not trip:
-        await message.answer(t(lang, 'no_active_trip'))
+
+async def wait_for_replacement(bot: Bot, driver_user_id: int, group_id: int, lang: str):
+    """30 daqiqa kutib, o'sha hududdan yangi yo'lovchi qidiradi"""
+    pending = await db.count_pending(group_id)
+    if pending > 0:
+        await start_next_call(bot, driver_user_id, group_id, lang)
         return
 
-    passenger_ids = await db.complete_trip(trip['id'])
-    await message.answer(t(lang, 'trip_finished'))
+    # Yangi yo'lovchi keladimi?
+    await bot.send_message(driver_user_id, "⏳ 30 daqiqa o'sha hududdan yangi yo'lovchi kutilmoqda...")
+    await asyncio.sleep(30 * 60)
 
-    driver_info = await db.get_driver_info(message.from_user.id)
+    # Hali ham guruh ochiq?
+    group = await db.get_match_group(group_id)
+    if not group or group['status'] not in ('calling', 'confirmed'):
+        return
 
-    for pid in passenger_ids:
-        puser = await db.get_user(pid)
-        if puser:
-            try:
+    # Topilmasa — mavjud a'zolar bilan yakunlash
+    confirmed = await db.count_confirmed(group_id)
+    if confirmed > 0:
+        await bot.send_message(driver_user_id, f"⏱ Yangi yo'lovchi topilmadi. {confirmed} ta yo'lovchi bilan davom etamiz.")
+        await finalize_group(bot, driver_user_id, group_id, lang)
+    else:
+        await bot.send_message(driver_user_id, "😔 Yo'lovchi topilmadi. Navbatga qaytdingiz.")
+        await db.set_group_status(group_id, 'cancelled')
+
+
+async def finalize_group(bot: Bot, driver_user_id: int, group_id: int, lang: str):
+    """Barcha yo'lovchilar ko'rib chiqilgandan keyin marshrut tuzib beradi"""
+    confirmed = await db.get_confirmed_members(group_id)
+    if not confirmed:
+        await bot.send_message(driver_user_id, "😔 Hech kim tasdiqlamadi. Navbatga qaytdingiz.")
+        await db.set_group_status(group_id, 'cancelled')
+        return
+
+    await db.set_group_status(group_id, 'confirmed')
+
+    # Haydovchi lokatsiyasini olish (hozircha None)
+    driver_lat, driver_lng = None, None
+
+    passengers = [dict(m) for m in confirmed]
+    sorted_pass = mx.sort_passengers_for_pickup(driver_lat, driver_lng, passengers)
+
+    route_text = mx.build_route_text(sorted_pass, lang)
+    nav_url = mx.build_yandex_navigator_url(driver_lat, driver_lng, sorted_pass)
+
+    text = (
+        f"✅ {len(sorted_pass)} ta yo'lovchi tasdiqladi!\n\n"
+        f"📍 <b>Marshrut tartibi:</b>\n{route_text}\n\n"
+        f"🚗 Qaysi birini birinchi, qaysinisini keyin olish — yuqoridagi tartibda."
+    )
+
+    kb = None
+    if nav_url:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🗺 Yandex Navigator da ochish", url=nav_url)
+        ], [
+            InlineKeyboardButton(text="🏁 Safarni yakunlash", callback_data=f"finish_group_{group_id}")
+        ]])
+    else:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="🏁 Safarni yakunlash", callback_data=f"finish_group_{group_id}")
+        ]])
+
+    await bot.send_message(driver_user_id, text, parse_mode="HTML", reply_markup=kb)
+
+    # Har bir yo'lovchiga tasdiqlangan xabar
+    for p in sorted_pass:
+        try:
+            puser = await db.get_user(p['user_id'])
+            if puser:
+                driver_info = await db.get_driver_info(driver_user_id)
                 await bot.send_message(
-                    pid,
-                    t(puser['lang'], 'rate_driver', name=driver_info['full_name']),
-                    reply_markup=rating_keyboard(message.from_user.id, trip['id'])
+                    p['user_id'],
+                    f"🚗 Haydovchi siz bilan kelishdi!\n\n"
+                    f"👤 {driver_info['full_name']}\n"
+                    f"📞 {driver_info['phone']}\n"
+                    f"🚙 {driver_info['car_model']} · {driver_info['car_color']} · {driver_info['car_number']}\n"
+                    f"⭐ {driver_info['rating']:.1f}\n\n"
+                    f"Haydovchi tez orada siz bilan bog'lanadi!"
                 )
-            except Exception:
-                pass
+        except Exception:
+            pass
 
 
-# --- Reyting ---
+@router.callback_query(F.data.startswith("finish_group_"))
+async def finish_group(callback: CallbackQuery, bot: Bot):
+    lang = await get_lang(callback.from_user.id)
+    group_id = int(callback.data.split("_")[2])
+
+    confirmed = await db.get_confirmed_members(group_id)
+    await db.set_group_status(group_id, 'completed')
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer("✅ Safar yakunlandi!", show_alert=False)
+    await callback.message.answer("🏁 Safar yakunlandi! Yo'lovchilardan baho so'ralmoqda...")
+
+    driver_info = await db.get_driver_info(callback.from_user.id)
+
+    for m in confirmed:
+        try:
+            puser = await db.get_user(m['user_id'])
+            if puser:
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="1⭐", callback_data=f"rate_{callback.from_user.id}_{group_id}_1"),
+                    InlineKeyboardButton(text="2⭐", callback_data=f"rate_{callback.from_user.id}_{group_id}_2"),
+                    InlineKeyboardButton(text="3⭐", callback_data=f"rate_{callback.from_user.id}_{group_id}_3"),
+                    InlineKeyboardButton(text="4⭐", callback_data=f"rate_{callback.from_user.id}_{group_id}_4"),
+                    InlineKeyboardButton(text="5⭐", callback_data=f"rate_{callback.from_user.id}_{group_id}_5"),
+                ]])
+                await bot.send_message(
+                    m['user_id'],
+                    f"⭐ Haydovchini baholang ({driver_info['full_name']}):",
+                    reply_markup=kb
+                )
+        except Exception:
+            pass
+
 
 @router.callback_query(F.data.startswith("rate_"))
 async def save_rating(callback: CallbackQuery):
     lang = await get_lang(callback.from_user.id)
     parts = callback.data.split("_")
-    driver_id, trip_id, stars = int(parts[1]), int(parts[2]), int(parts[3])
+    driver_id, group_id, stars = int(parts[1]), int(parts[2]), int(parts[3])
 
-    saved = await db.save_rating(callback.from_user.id, driver_id, trip_id, stars)
+    saved = await db.save_rating(callback.from_user.id, driver_id, group_id, stars)
     await callback.message.edit_reply_markup(reply_markup=None)
-
     if saved:
-        await callback.answer(t(lang, 'rating_saved'), show_alert=True)
+        await callback.answer("⭐ Rahmat! Bahoyingiz qabul qilindi.", show_alert=True)
     else:
-        await callback.answer(t(lang, 'rate_already'), show_alert=True)
+        await callback.answer("Siz allaqachon baho bergansiz.", show_alert=True)
 
 
-# --- Statistika ---
-
-@router.message(F.text.in_(["📊 Statistikam", "📊 Моя статистика"]))
-async def my_stats(message: Message):
+# ─── NAVBATDAN CHIQISH ────────────────────────────────────
+@router.message(F.text.in_(["❌ Navbatdan chiqish", "❌ Выйти из очереди"]))
+async def leave_queue(message: Message):
     lang = await get_lang(message.from_user.id)
-    stats = await db.get_driver_stats(message.from_user.id)
+    await db.cancel_driver_queue(message.from_user.id)
     await message.answer(
-        t(lang, 'stats_text',
-          total=stats['total'],
-          today=stats['today'],
-          rating=stats['rating'] or 5.0,
-          rating_count=stats['rating_count'] or 0),
-        parse_mode="HTML"
+        "✅ Navbatdan chiqdingiz." if lang == 'uz' else "✅ Вы вышли из очереди.",
+        reply_markup=driver_menu_keyboard(lang)
     )
 
 
-# --- Tarix (haydovchi uchun ham passenger.py da ishlaydi) ---
+# ─── STATISTIKA ───────────────────────────────────────────
+@router.message(F.text.in_(["📊 Statistikam", "📊 Моя статистика"]))
+async def my_stats(message: Message):
+    lang = await get_lang(message.from_user.id)
+    async with db.pool.acquire() as conn:
+        total = await conn.fetchval("""
+            SELECT COUNT(*) FROM match_groups mg
+            JOIN driver_queue dq ON dq.id=mg.driver_queue_id
+            WHERE dq.user_id=$1 AND mg.status='completed'
+        """, message.from_user.id)
+        today = await conn.fetchval("""
+            SELECT COUNT(*) FROM match_groups mg
+            JOIN driver_queue dq ON dq.id=mg.driver_queue_id
+            WHERE dq.user_id=$1 AND mg.status='completed' AND DATE(mg.created_at)=CURRENT_DATE
+        """, message.from_user.id)
+    user = await db.get_user(message.from_user.id)
+    await message.answer(
+        f"📊 <b>Statistika</b>\n\n"
+        f"🚗 Jami safarlar: <b>{total}</b>\n"
+        f"📅 Bugun: <b>{today}</b>\n"
+        f"⭐ Reyting: <b>{user['rating']:.1f}</b> ({user['rating_count']} baho)",
+        parse_mode="HTML"
+    )
