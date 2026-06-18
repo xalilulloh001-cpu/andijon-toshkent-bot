@@ -68,6 +68,7 @@ async def init_db():
                 to_user BIGINT REFERENCES users(id),
                 trip_id INT REFERENCES driver_trips(id),
                 stars INT CHECK (stars BETWEEN 1 AND 5),
+                comment TEXT,
                 created_at TIMESTAMPTZ DEFAULT NOW()
             );
         """)
@@ -112,6 +113,15 @@ async def register_driver(user_id: int, car_model: str, car_number: str, car_col
         await conn.execute("UPDATE users SET role='driver' WHERE id=$1", user_id)
 
 
+async def get_active_trip(driver_id: int):
+    """Haydovchining faol trippi bor-yo'qligini tekshiradi"""
+    async with pool.acquire() as conn:
+        return await conn.fetchrow(
+            "SELECT id FROM driver_trips WHERE driver_id=$1 AND status IN ('waiting','active') LIMIT 1",
+            driver_id
+        )
+
+
 async def create_driver_trip(driver_id, direction, seats, depart_time, lat, lng):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -133,6 +143,19 @@ async def create_passenger_request(user_id, direction, seat_position, seat_count
         return row['id']
 
 
+async def get_active_passenger_request(user_id: int):
+    """Yo'lovchining faol so'rovini qaytaradi"""
+    async with pool.acquire() as conn:
+        return await conn.fetchrow(
+            """SELECT pr.*, dt.driver_id, dt.direction as trip_dir
+               FROM passenger_requests pr
+               LEFT JOIN driver_trips dt ON dt.id = pr.matched_trip_id
+               WHERE pr.user_id=$1 AND pr.status IN ('waiting','matched')
+               ORDER BY pr.created_at DESC LIMIT 1""",
+            user_id
+        )
+
+
 async def get_waiting_passengers(direction: str, depart_time, max_time_diff_hours=2):
     async with pool.acquire() as conn:
         return await conn.fetch(
@@ -149,8 +172,6 @@ async def get_waiting_passengers(direction: str, depart_time, max_time_diff_hour
 
 
 async def get_waiting_passengers_extended(direction: str, depart_time):
-    """Extended search: opposite direction passengers along the route"""
-    opposite = 'toshkent_andijon' if direction == 'andijon_toshkent' else 'andijon_toshkent'
     async with pool.acquire() as conn:
         return await conn.fetch(
             """SELECT pr.*, u.full_name, u.phone, u.rating
@@ -161,7 +182,7 @@ async def get_waiting_passengers_extended(direction: str, depart_time):
                  AND pr.time_from <= $2 + INTERVAL '2 hours'
                  AND pr.time_to >= $2 - INTERVAL '2 hours'
                ORDER BY pr.created_at""",
-            opposite, depart_time
+            direction, depart_time
         )
 
 
@@ -195,11 +216,19 @@ async def complete_trip(trip_id: int):
         return [r['user_id'] for r in rows]
 
 
-async def save_rating(from_user: int, to_user: int, trip_id: int, stars: int):
+async def save_rating(from_user: int, to_user: int, trip_id: int, stars: int, comment: str = None):
     async with pool.acquire() as conn:
+        # Bir safar uchun ikki marta baho berishni oldini olish
+        existing = await conn.fetchval(
+            "SELECT id FROM ratings WHERE from_user=$1 AND trip_id=$2",
+            from_user, trip_id
+        )
+        if existing:
+            return False
+
         await conn.execute(
-            "INSERT INTO ratings (from_user, to_user, trip_id, stars) VALUES ($1,$2,$3,$4)",
-            from_user, to_user, trip_id, stars
+            "INSERT INTO ratings (from_user, to_user, trip_id, stars, comment) VALUES ($1,$2,$3,$4,$5)",
+            from_user, to_user, trip_id, stars, comment
         )
         await conn.execute(
             """UPDATE users SET
@@ -208,12 +237,13 @@ async def save_rating(from_user: int, to_user: int, trip_id: int, stars: int):
                WHERE id=$1""",
             to_user
         )
+        return True
 
 
 async def cancel_passenger_request(user_id: int):
     async with pool.acquire() as conn:
         await conn.execute(
-            "UPDATE passenger_requests SET status='cancelled' WHERE user_id=$1 AND status='waiting'",
+            "UPDATE passenger_requests SET status='cancelled' WHERE user_id=$1 AND status IN ('waiting','matched')",
             user_id
         )
 
@@ -250,7 +280,40 @@ async def get_driver_stats(user_id: int):
             user_id
         )
         rating = await conn.fetchval("SELECT rating FROM users WHERE id=$1", user_id)
-        return {'total': total, 'today': today, 'rating': rating}
+        rating_count = await conn.fetchval("SELECT rating_count FROM users WHERE id=$1", user_id)
+        return {'total': total, 'today': today, 'rating': rating, 'rating_count': rating_count}
+
+
+async def get_trip_history(user_id: int, role: str, limit: int = 10):
+    """Foydalanuvchi safar tarixini qaytaradi"""
+    async with pool.acquire() as conn:
+        if role == 'driver':
+            return await conn.fetch(
+                """SELECT id, direction, seats, depart_time, status, created_at
+                   FROM driver_trips WHERE driver_id=$1
+                   ORDER BY created_at DESC LIMIT $2""",
+                user_id, limit
+            )
+        else:
+            return await conn.fetch(
+                """SELECT pr.id, pr.direction, pr.seat_count, pr.time_from, pr.status, pr.created_at,
+                          u.full_name as driver_name, d.car_model, d.car_number
+                   FROM passenger_requests pr
+                   LEFT JOIN driver_trips dt ON dt.id = pr.matched_trip_id
+                   LEFT JOIN users u ON u.id = dt.driver_id
+                   LEFT JOIN drivers d ON d.user_id = dt.driver_id
+                   WHERE pr.user_id=$1
+                   ORDER BY pr.created_at DESC LIMIT $2""",
+                user_id, limit
+            )
+
+
+async def update_driver_car(user_id: int, car_model: str, car_number: str, car_color: str):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE drivers SET car_model=$1, car_number=$2, car_color=$3 WHERE user_id=$4",
+            car_model, car_number, car_color, user_id
+        )
 
 
 async def get_all_users_count():
