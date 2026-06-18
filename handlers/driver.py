@@ -317,20 +317,67 @@ async def accept_passenger(callback: CallbackQuery, bot: Bot):
     parts = callback.data.split("_")
     passenger_req_id, trip_id = int(parts[1]), int(parts[2])
 
-    driver_info = await db.get_driver_info(callback.from_user.id)
-
+    # Yo'lovchi va trip ma'lumotlarini olamiz
     async with db.pool.acquire() as conn:
         p = await conn.fetchrow(
-            "SELECT pr.user_id, u.lang FROM passenger_requests pr JOIN users u ON u.id=pr.user_id WHERE pr.id=$1",
+            """SELECT pr.user_id, pr.seat_position, pr.seat_count, u.lang
+               FROM passenger_requests pr
+               JOIN users u ON u.id = pr.user_id
+               WHERE pr.id = $1""",
             passenger_req_id
         )
+        trip = await conn.fetchrow(
+            "SELECT seats FROM driver_trips WHERE id = $1", trip_id
+        )
 
-    if p:
-        from handlers.passenger import notify_passenger_driver_found
-        await notify_passenger_driver_found(bot, p['user_id'], dict(driver_info), p['lang'])
+    if not p or not trip:
+        await callback.answer("❌ Ma'lumot topilmadi", show_alert=True)
+        return
+
+    # O'rindiq tekshiruvi — atomik (race condition yo'q)
+    ok, reason = await db.check_and_match_passenger(
+        passenger_req_id=passenger_req_id,
+        trip_id=trip_id,
+        seat_position=p['seat_position'],
+        seat_count=p['seat_count'],
+        total_trip_seats=trip['seats']
+    )
+
+    if not ok:
+        # O'rindiq band — haydovchiga xabar
+        seat_uz = "Oldi o'rindiq" if p['seat_position'] == 'front' else "Orqa o'rindiq"
+        await callback.answer(
+            f"⚠️ {reason}\n\n{seat_uz} uchun joy qolmadi.",
+            show_alert=True
+        )
+        # Kartochkani o'chirib, bekor qilinganligini ko'rsatamiz
+        try:
+            await callback.message.edit_text(
+                callback.message.text + f"\n\n⚠️ {reason}",
+                reply_markup=None
+            )
+        except Exception:
+            await callback.message.edit_reply_markup(reply_markup=None)
+        return
+
+    # O'rindiq bo'sh edi va band qilindi — yo'lovchiga xabar
+    driver_info = await db.get_driver_info(callback.from_user.id)
+    from handlers.passenger import notify_passenger_driver_found
+    await notify_passenger_driver_found(bot, p['user_id'], dict(driver_info), p['lang'])
 
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.answer(t(lang, 'passenger_accepted'), show_alert=True)
+
+    # Haydovchiga qolgan o'rindiqlar statistikasini ko'rsat
+    stats = await db.get_seat_stats(trip_id, trip['seats'])
+    await bot.send_message(
+        callback.from_user.id,
+        f"💺 <b>O'rindiq holati:</b>\n"
+        f"🪑 Oldi: {1 - stats['front_available']}/1 band\n"
+        f"💺 Orqa: {(trip['seats']-1) - stats['back_available']}/{trip['seats']-1} band\n"
+        f"✅ Jami bo'sh: {stats['total_available']} ta",
+        parse_mode="HTML"
+    )
 
 
 @router.callback_query(F.data.startswith("reject_"))
