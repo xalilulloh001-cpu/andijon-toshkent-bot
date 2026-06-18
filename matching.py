@@ -1,158 +1,202 @@
 import math
-from typing import List, Dict, Any
+from typing import List, Dict, Optional
 
 ROUTE_POINTS = [
-    {"name": "Andijon",    "lat": 40.7821, "lng": 72.3442},
-    {"name": "Asaka",      "lat": 40.6397, "lng": 72.2356},
-    {"name": "Namangan",   "lat": 40.9983, "lng": 71.6726},
-    {"name": "Qo'qon",    "lat": 40.5283, "lng": 70.9422},
-    {"name": "Marg'ilon", "lat": 40.4736, "lng": 71.7225},
-    {"name": "Farg'ona",  "lat": 40.3842, "lng": 71.7843},
-    {"name": "Sirdaryo",   "lat": 40.8393, "lng": 68.6643},
-    {"name": "Guliston",   "lat": 40.4897, "lng": 68.7842},
-    {"name": "Yangiyo'l", "lat": 41.1097, "lng": 69.0500},
-    {"name": "Ohangaron",  "lat": 41.0828, "lng": 69.6397},
-    {"name": "Angren",     "lat": 41.0169, "lng": 70.1444},
-    {"name": "Toshkent",   "lat": 41.2995, "lng": 69.2401},
+    {"name": "Andijon",   "lat": 40.7821, "lng": 72.3442},
+    {"name": "Asaka",     "lat": 40.6397, "lng": 72.2356},
+    {"name": "Namangan",  "lat": 40.9983, "lng": 71.6726},
+    {"name": "Qo'qon",   "lat": 40.5283, "lng": 70.9422},
+    {"name": "Marg'ilon","lat": 40.4736, "lng": 71.7225},
+    {"name": "Farg'ona", "lat": 40.3842, "lng": 71.7843},
+    {"name": "Sirdaryo",  "lat": 40.8393, "lng": 68.6643},
+    {"name": "Guliston",  "lat": 40.4897, "lng": 68.7842},
+    {"name": "Yangiyo'l","lat": 41.1097, "lng": 69.0500},
+    {"name": "Ohangaron", "lat": 41.0828, "lng": 69.6397},
+    {"name": "Angren",    "lat": 41.0169, "lng": 70.1444},
+    {"name": "Toshkent",  "lat": 41.2995, "lng": 69.2401},
 ]
 
-# Har bir mashina turi uchun o'rindiq cheklovi
-# front = oldi o'rindiq (har doim 1 ta)
-# back  = orqa o'rindiq (seats_total - 1)
-SEAT_LIMITS = {
-    "front": 1,   # Oldi o'rindiq — faqat 1 ta joy
-    "back": None, # Orqa — haydovchi e'lon qilgan seats - 1
+# Matnli joylashuv → mintaqa nomiga moslashtirish
+REGION_ALIASES = {
+    "eski shahar": "andijon_eski",
+    "andijon eski": "andijon_eski",
+    "yangi shahar": "andijon_yangi",
+    "ko'k bo'z": "toshkent_kokboz",
+    "chilonzor": "toshkent_chilonzor",
+    "yunusobod": "toshkent_yunusobod",
+    "xo'jaobod": "xojaobod",
+    "xojaobod": "xojaobod",
+    "asaka": "asaka",
+    "namangan": "namangan",
+    "qo'qon": "qoqon",
+    "farg'ona": "fargona",
 }
 
 
 def haversine(lat1, lng1, lat2, lng2) -> float:
     R = 6371
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lng2 - lng1)
-    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lng2 - lng1)
+    a = math.sin(dp/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
 
-def is_on_route(lat, lng, max_km=30) -> bool:
-    return any(haversine(lat, lng, p["lat"], p["lng"]) <= max_km for p in ROUTE_POINTS)
+def parse_region(text: str) -> Optional[str]:
+    """Matnli joylashuvdan mintaqa nomini aniqlaydi"""
+    t = text.lower().strip()
+    for alias, region in REGION_ALIASES.items():
+        if alias in t:
+            return region
+    return t.replace(" ", "_")[:30]
 
 
-def get_seat_capacity(seat_position: str, total_seats: int) -> int:
+def group_passengers_by_proximity(
+    passengers: List[Dict],
+    needed: int,
+    max_group_radius_km: float = 15.0
+) -> List[List[Dict]]:
     """
-    O'rindiq joyi bo'yicha nechta odam o'tira olishini qaytaradi.
+    Yo'lovchilarni bir-biriga yaqin guruhlarga bo'ladi.
+    Har guruhda 'needed' ta yoki kamroq yo'lovchi bo'ladi.
+    Guruh radiusi max_group_radius_km km dan oshmasin.
 
-    front → har doim 1
-    back  → total_seats - 1  (masalan: 4 o'rinli mashina = 3 orqa joy)
+    Lokatsiyasiz yo'lovchilar (faqat matn) bir xil region bo'lsa guruhlanadi.
     """
-    if seat_position == "front":
-        return 1
-    return max(1, total_seats - 1)
+    if not passengers:
+        return []
+
+    used = set()
+    groups = []
+
+    # 1. Lokatsiyali yo'lovchilar — koordinata bo'yicha guruhlash
+    with_coords = [p for p in passengers if p.get('lat') and p.get('lng')]
+    without_coords = [p for p in passengers if not (p.get('lat') and p.get('lng'))]
+
+    # Greedy clustering
+    for anchor in with_coords:
+        if anchor['id'] in used:
+            continue
+        group = [anchor]
+        used.add(anchor['id'])
+        for other in with_coords:
+            if other['id'] in used:
+                continue
+            if len(group) >= needed:
+                break
+            d = haversine(anchor['lat'], anchor['lng'], other['lat'], other['lng'])
+            if d <= max_group_radius_km:
+                group.append(other)
+                used.add(other['id'])
+        groups.append(group)
+
+    # 2. Lokatsiyasiz yo'lovchilar — region bo'yicha guruhlash
+    region_buckets: Dict[str, List] = {}
+    for p in without_coords:
+        r = p.get('region') or 'unknown'
+        region_buckets.setdefault(r, []).append(p)
+
+    for region, plist in region_buckets.items():
+        for i in range(0, len(plist), needed):
+            chunk = plist[i:i+needed]
+            groups.append(chunk)
+
+    return groups
 
 
-def count_booked_seats(passengers: List[Dict], seat_position: str) -> int:
-    """
-    Berilgan o'rindiq turida allaqachon band qilingan joylar sonini hisoblaydi.
-    Har bir yo'lovchining seat_count si ham hisobga olinadi.
-    """
-    total = 0
-    for p in passengers:
-        if p.get("seat_position") == seat_position and p.get("status") == "matched":
-            total += p.get("seat_count", 1)
-    return total
-
-
-def check_seat_available(
-    seat_position: str,
-    requested_count: int,
-    total_trip_seats: int,
-    already_matched: List[Dict]
-) -> tuple[bool, str]:
-    """
-    So'ralgan o'rindiq mavjudligini tekshiradi.
-
-    Qaytaradi: (mavjud: bool, sabab: str)
-    """
-    capacity = get_seat_capacity(seat_position, total_trip_seats)
-    booked = count_booked_seats(already_matched, seat_position)
-    available = capacity - booked
-
-    if requested_count > available:
-        pos_name = "oldi o'rindiq" if seat_position == "front" else "orqa o'rindiq"
-        if available <= 0:
-            return False, f"{pos_name.capitalize()} to'liq band"
-        return False, f"{pos_name.capitalize()}da faqat {available} ta joy bor, siz {requested_count} ta so'radingiz"
-
-    return True, "ok"
-
-
-def find_best_matches(
-    driver_lat: float,
-    driver_lng: float,
-    driver_direction: str,
-    driver_seats: int,
-    same_dir_passengers: List[Dict],
-    opposite_dir_passengers: List[Dict],
-    already_matched: List[Dict] = None
+def sort_passengers_for_pickup(
+    driver_lat: Optional[float],
+    driver_lng: Optional[float],
+    passengers: List[Dict]
 ) -> List[Dict]:
     """
-    To'liq matching — o'rindiq cheklovi bilan.
-
-    Har bir yo'lovchi uchun:
-    1. O'rindiq turi bo'sh ekanligini tekshiradi
-    2. Bir vaqtda band bo'lmaslik uchun hisobga oladi
-    3. Masofaga qarab saralaydi
+    Haydovchi turgan joydan boshlab qaysi yo'lovchini birinchi olish kerakligini aniqlaydi.
+    Eng yaqindan boshlab saralaydi — TSP (Traveling Salesman) oddiy greedy versiyasi.
+    Lokatsiyasiz yo'lovchilar oxiriga qo'yiladi.
     """
-    if already_matched is None:
-        already_matched = []
+    if not passengers:
+        return []
 
-    # Hozirgi band joylar holatini kuzatish uchun
-    # (matching davomida yangi qo'shilganlarni ham hisobga olamiz)
-    running_matched = list(already_matched)
-    result = []
-    needed = driver_seats
+    with_coords = [p for p in passengers if p.get('lat') and p.get('lng')]
+    without_coords = [p for p in passengers if not (p.get('lat') and p.get('lng'))]
 
-    def try_add_passenger(p: Dict) -> bool:
-        """Yo'lovchini qo'shishga harakat qiladi, o'rindiq tekshiruvi bilan"""
-        seat_pos = p.get("seat_position", "back")
-        seat_cnt = p.get("seat_count", 1)
+    if not driver_lat or not driver_lng:
+        # Haydovchi koordinatasi yo'q — tartibni o'zgartirmaymiz
+        return passengers
 
-        ok, reason = check_seat_available(
-            seat_pos, seat_cnt, driver_seats, running_matched
-        )
-        if not ok:
-            p["_rejected_reason"] = reason
-            return False
+    ordered = []
+    remaining = list(with_coords)
+    cur_lat, cur_lng = driver_lat, driver_lng
 
-        # O'rindiq bo'sh — qo'shamiz
-        p["_matched"] = True
-        p["_rejected_reason"] = None
-        running_matched.append({**p, "status": "matched"})
-        result.append(p)
-        return True
+    while remaining:
+        nearest = min(remaining, key=lambda p: haversine(cur_lat, cur_lng, p['lat'], p['lng']))
+        nearest['_pickup_dist'] = round(haversine(cur_lat, cur_lng, nearest['lat'], nearest['lng']), 1)
+        ordered.append(nearest)
+        remaining.remove(nearest)
+        cur_lat, cur_lng = nearest['lat'], nearest['lng']
 
-    # Masofani hisoblash
-    def with_distance(passengers):
-        for p in passengers:
-            if p.get("lat") and p.get("lng") and driver_lat and driver_lng:
-                p["_distance"] = haversine(driver_lat, driver_lng, p["lat"], p["lng"])
-            else:
-                p["_distance"] = 0.0
-        return sorted(passengers, key=lambda x: x["_distance"])
+    return ordered + without_coords
 
-    # 1-bosqich: bir xil yo'nalish, masofaga qarab
-    for p in with_distance(same_dir_passengers):
-        if len(result) >= needed:
-            break
-        try_add_passenger(p)
 
-    # 2-bosqich: yo'l ustidagi qarama-qarshi yo'nalish
-    if len(result) < needed:
-        on_route = [p for p in opposite_dir_passengers
-                    if p.get("lat") and is_on_route(p["lat"], p.get("lng", 0))]
-        for p in with_distance(on_route):
-            if len(result) >= needed:
-                break
-            try_add_passenger(p)
+def build_yandex_navigator_url(
+    driver_lat: Optional[float],
+    driver_lng: Optional[float],
+    passengers: List[Dict]
+) -> str:
+    """
+    Yandex Navigator deep link — bir marshrut ichida barcha to'xtash joylari.
+    Format: https://yandex.uz/maps/?rtext=lat,lng~lat,lng~lat,lng&rtt=auto
+    """
+    points = []
 
-    return result[:needed]
+    if driver_lat and driver_lng:
+        points.append(f"{driver_lat},{driver_lng}")
+
+    for p in passengers:
+        if p.get('lat') and p.get('lng'):
+            points.append(f"{p['lat']},{p['lng']}")
+
+    if len(points) < 2:
+        return ""
+
+    rtext = "~".join(points)
+    return f"https://yandex.uz/maps/?rtext={rtext}&rtt=auto&mode=routes"
+
+
+def build_route_text(passengers: List[Dict], lang: str = 'uz') -> str:
+    """
+    Haydovchiga marshrut matnini tuzib beradi.
+    Masalan:
+    1️⃣ Zulfiya A. — Eski shahar (2.3 km)
+    2️⃣ Mansur K. — Xo'jaobod (5.1 km)
+    """
+    lines = []
+    nums = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+    for i, p in enumerate(passengers):
+        num = nums[i] if i < len(nums) else f"{i+1}."
+        name = p.get('full_name', '?')
+        loc = p.get('location_name') or p.get('region') or ('Lokatsiya yo\'q' if lang == 'uz' else 'Без локации')
+        dist = p.get('_pickup_dist', '')
+        dist_txt = f" ({dist} km)" if dist else ""
+        lines.append(f"{num} {name} — {loc}{dist_txt}")
+    return "\n".join(lines)
+
+
+def find_best_group(
+    waiting_passengers: List[Dict],
+    needed: int
+) -> Optional[List[Dict]]:
+    """
+    Kutayotgan yo'lovchilar ichidan eng yaxshi guruhni topadi.
+    Eng ko'p a'zoli, bir-biriga eng yaqin guruhni qaytaradi.
+    """
+    groups = group_passengers_by_proximity(waiting_passengers, needed)
+    if not groups:
+        return None
+
+    # Eng to'liq guruhni tanlash
+    best = max(groups, key=lambda g: len(g))
+    if not best:
+        return None
+
+    return best[:needed]
