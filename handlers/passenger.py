@@ -148,6 +148,18 @@ async def choose_hour_to(callback: CallbackQuery, state: FSMContext):
 async def receive_location(message: Message, state: FSMContext):
     lang = await get_lang(message.from_user.id)
     data = await state.get_data()
+
+    # Faol so'rov borligini tekshirish
+    existing = await db.get_active_passenger_request(message.from_user.id)
+    if existing:
+        await state.clear()
+        await message.answer(
+            "⚠️ Sizda allaqachon faol so'rov bor!\n"
+            "Avval uni bekor qiling, keyin yangi so'rov yuboring.",
+            reply_markup=passenger_menu_keyboard(lang)
+        )
+        return
+
     time_from = datetime.fromisoformat(data['time_from'])
     time_to = datetime.fromisoformat(data['time_to'])
 
