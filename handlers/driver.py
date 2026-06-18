@@ -157,46 +157,135 @@ async def choose_seats(callback: CallbackQuery, state: FSMContext, bot: Bot):
 
 
 async def try_match_driver(bot: Bot, dq_id: int, driver_user_id: int, direction: str, seats: int, lang: str):
-    """Haydovchi uchun mos yo'lovchilar guruhini topadi"""
+    """Haydovchi uchun mos yo'lovchilar guruhini o'rindiq tekshiruvi bilan topadi"""
     waiting = await db.get_waiting_passengers(direction)
     if not waiting:
         return
 
     passengers = [dict(p) for p in waiting]
-    group = mx.find_best_group(passengers, seats)
-    if not group:
+    result = mx.find_best_group(passengers, seats)
+    if not result:
         return
 
-    # Guruh yaratish
+    fitted, overflow = result
+
+    # Asosiy guruhni yaratish
     group_id = await db.create_match_group(dq_id, direction)
-    pq_ids = [p['id'] for p in group]
-    await db.add_match_members(group_id, pq_ids)
+    pq_ids = [p['id'] for p in fitted]
+    await db.add_match_members(group_id, pq_ids, seat_overrides={p['id']: p.get('_final_seat') for p in fitted})
     await db.set_driver_queue_status(dq_id, 'matching')
 
-    # Haydovchiga guruh ro'yxatini yuborish
+    # Overflow yo'lovchilarga orqa o'rindiq taklifi
+    for p in overflow:
+        asyncio.create_task(offer_back_seat(bot, p, group_id, lang))
+
     await send_group_list(bot, driver_user_id, group_id, lang)
 
 
+async def offer_back_seat(bot: Bot, passenger: dict, group_id: int, lang: str):
+    """
+    Oldi o'rindiq to'lganda yo'lovchiga orqa o'rindiq taklif qiladi.
+    Yo'lovchi rozilasa guruhga qo'shiladi.
+    """
+    pq_id = passenger['id']
+    user_id = passenger['user_id']
+    back_avail = passenger.get('_back_available', 0)
+
+    if back_avail <= 0:
+        return  # Orqa ham to'lgan — taklif qilish shart emas
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="✅ Roziman, orqada ketaman",
+            callback_data=f"back_ok_{pq_id}_{group_id}"
+        ),
+        InlineKeyboardButton(
+            text="❌ Yo'q, kutaman",
+            callback_data=f"back_no_{pq_id}"
+        ),
+    ]])
+
+    try:
+        await bot.send_message(
+            user_id,
+            f"🪑 Oldi o'rindiq band!\n\n"
+            f"Siz oldi o'rindiq so'ragansiz, lekin u allaqachon band.\n"
+            f"💺 Orqa o'rindiqda {back_avail} ta joy bor.\n\n"
+            f"Orqa o'rindiqda ketasizmi?",
+            reply_markup=kb
+        )
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("back_ok_"))
+async def back_seat_accepted(callback: CallbackQuery, bot: Bot):
+    """Yo'lovchi orqa o'rindiqqa rozi bo'ldi"""
+    lang = await get_lang(callback.from_user.id)
+    parts = callback.data.split("_")
+    pq_id, group_id = int(parts[2]), int(parts[3])
+
+    # Guruh hali ochiqmi?
+    group = await db.get_match_group(group_id)
+    if not group or group['status'] not in ('calling', 'confirmed'):
+        await callback.message.edit_text("⚠️ Afsuski, bu guruh endi mavjud emas. Navbatda qolasiz.")
+        return
+
+    # Orqa o'rindiq hali bo'shmi?
+    can_add, reason = await db.check_back_seat_available(group_id)
+    if not can_add:
+        await callback.message.edit_text(f"😔 {reason}\n\nNavbatda qolasiz.")
+        return
+
+    # Qo'shamiz — orqa o'rindiq bilan
+    await db.add_match_members(group_id, [pq_id], seat_overrides={pq_id: 'back'})
+    await callback.message.edit_text("✅ Qo'shildingiz! Haydovchi tez orada qo'ng'iroq qiladi.")
+
+    # Haydovchiga xabar
+    member_info = await db.get_passenger_queue_entry_by_id(pq_id)
+    if member_info:
+        dq = await db.get_driver_queue_by_group(group_id)
+        if dq:
+            try:
+                await bot.send_message(
+                    dq['user_id'],
+                    f"➕ Yangi yo'lovchi qo'shildi (orqa o'rindiq):\n"
+                    f"👤 {member_info['full_name'] if 'full_name' in member_info else '?'}\n"
+                    f"📞 {member_info['phone'] if 'phone' in member_info else '?'}"
+                )
+            except Exception:
+                pass
+
+
+@router.callback_query(F.data.startswith("back_no_"))
+async def back_seat_rejected(callback: CallbackQuery):
+    """Yo'lovchi orqa o'rindiqqa rozi bo'lmadi — navbatda qoladi"""
+    await callback.message.edit_text(
+        "✅ Tushunildi. Siz navbatda qolasiz.\n"
+        "Keyingi haydovchida oldi o'rindiq bo'sh bo'lsa xabar beramiz."
+    )
+
+
 async def send_group_list(bot: Bot, driver_user_id: int, group_id: int, lang: str):
-    """Haydovchiga yo'lovchilar ro'yxatini yuboradi va birinchi qo'ng'iroqni boshlaydi"""
+    """Haydovchiga yo'lovchilar ro'yxatini o'rindiq ma'lumoti bilan yuboradi"""
     members = await db.get_group_members(group_id)
     if not members:
         return
 
     lines = []
+    seat_labels = {'front': '🪑 Oldi', 'back': '💺 Orqa'}
     for i, m in enumerate(members):
         nums = ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
         n = nums[i] if i < 4 else f"{i+1}."
         loc = m['location_name'] or m['region'] or "Lokatsiya ko'rsatilmagan"
-        lines.append(f"{n} {m['full_name']} — {loc}\n   📞 {m['phone']} | ⭐ {m['rating']:.1f}")
+        seat = seat_labels.get(m['seat_position'], '💺')
+        lines.append(f"{n} {m['full_name']} — {loc}\n   📞 {m['phone']} | {seat} | ⭐ {m['rating']:.1f}")
 
     text = (
         f"🎯 {len(members)} ta yo'lovchi topildi!\n\n" + "\n\n".join(lines) +
         "\n\n⏱ Har biriga 5 daqiqa vaqt beriladi. Qo'ng'iroq qilib tasdiqlang yoki rad eting."
     )
     await bot.send_message(driver_user_id, text)
-
-    # Birinchi yo'lovchini chaqirish
     await start_next_call(bot, driver_user_id, group_id, lang)
 
 
