@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AndTaxi — Andijon ↔ Toshkent</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{--bg:#0f1117;--card:#1a1d27;--card2:#222536;--accent:#4f8ef7;--accent2:#7c5cfc;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--text:#f0f2ff;--muted:#8890b0;--border:#2a2d3e;--radius:16px;--font:'Segoe UI',system-ui,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+
+/* HEADER */
+header{background:linear-gradient(135deg,#1a1d27,#0f1117);border-bottom:1px solid var(--border);padding:0 20px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 12px rgba(79,142,247,.4)}
+.logo-text{font-weight:800;font-size:17px;letter-spacing:-.3px}
+.logo-sub{font-size:11px;color:var(--muted);font-weight:400}
+.header-right{display:flex;align-items:center;gap:10px}
+.lang-btn{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:7px 13px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s}
+.lang-btn:hover{border-color:var(--accent);color:var(--accent)}
+.user-pill{display:flex;align-items:center;gap:8px;background:var(--card2);padding:7px 14px;border-radius:22px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);transition:all .2s}
+.user-pill:hover{border-color:var(--accent)}
+.user-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+
+/* LAYOUT */
+.app{display:grid;grid-template-columns:390px 1fr;height:calc(100vh - 64px)}
+
+/* LEFT PANEL */
+.panel{background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg)}
+.tab{flex:1;padding:14px 8px;text-align:center;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted);transition:all .2s;border-bottom:2px solid transparent;letter-spacing:.2px}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:var(--card)}
+.tab:hover:not(.active){color:var(--text);background:rgba(255,255,255,.03)}
+.panel-content{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.panel-content::-webkit-scrollbar{width:3px}
+.panel-content::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* CARDS */
+.card{background:var(--card2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:border-color .2s,transform .15s}
+.card:hover{border-color:rgba(79,142,247,.25)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.card-title{font-weight:700;font-size:14px}
+.badge{padding:4px 9px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.badge-waiting{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.3)}
+.badge-matched{background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-active{background:rgba(79,142,247,.15);color:var(--accent);border:1px solid rgba(79,142,247,.3)}
+.card-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:7px}
+.card-row:last-child{margin-bottom:0}
+.card-row strong{color:var(--text)}
+.card-row .ico{width:18px;text-align:center;flex-shrink:0}
+.route-wrap{display:flex;align-items:center;background:var(--bg);border-radius:10px;padding:10px 14px;margin-bottom:12px;gap:8px}
+.route-city{font-weight:800;font-size:13px}
+.route-arrow{color:var(--accent);flex:1;text-align:center;font-size:16px}
+
+/* BUTTONS */
+.card-actions{display:flex;gap:8px;margin-top:12px}
+.btn{padding:9px 16px;border-radius:10px;border:none;cursor:pointer;font-size:13px;font-weight:700;transition:all .15s;flex:1;font-family:var(--font)}
+.btn-accept{background:linear-gradient(135deg,var(--green),#16a34a);color:#fff}
+.btn-accept:hover{opacity:.88;transform:scale(1.02)}
+.btn-reject{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.btn-reject:hover{background:rgba(239,68,68,.22)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.btn-primary:hover{opacity:.88;transform:scale(1.02)}
+.btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.btn-danger:hover{background:rgba(239,68,68,.22)}
+.btn-sm{padding:7px 12px;font-size:12px;flex:0 0 auto}
+.btn-icon{padding:8px;flex:0 0 auto;font-size:16px}
+
+/* FORM */
+.form-section{display:flex;flex-direction:column;gap:13px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.form-input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;font-size:14px;outline:none;transition:border .2s;font-family:var(--font);width:100%}
+.form-input:focus{border-color:var(--accent)}
+.form-input::placeholder{color:rgba(136,144,176,.6)}
+
+.seg-control{display:flex;background:var(--bg);border-radius:10px;padding:3px;gap:3px}
+.seg-btn{flex:1;padding:8px;text-align:center;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);transition:all .2s;border:none;background:transparent;font-family:var(--font)}
+.seg-btn.active{background:var(--card2);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+
+.dir-card{display:flex;align-items:center;gap:12px;background:var(--bg);border:2px solid var(--border);border-radius:13px;padding:13px 15px;cursor:pointer;transition:all .2s}
+.dir-card.active{border-color:var(--accent);background:rgba(79,142,247,.07)}
+.dir-card:hover:not(.active){border-color:rgba(79,142,247,.35)}
+.dir-icon{font-size:22px}
+.dir-info{flex:1}
+.dir-name{font-weight:700;font-size:14px}
+.dir-dist{font-size:11px;color:var(--muted);margin-top:2px}
+.dir-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);transition:all .2s;flex-shrink:0}
+.dir-card.active .dir-check{background:var(--accent);border-color:var(--accent);display:flex;align-items:center;justify-content:center}
+.dir-card.active .dir-check::after{content:'✓';font-size:11px;color:#fff;font-weight:800}
+
+.time-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.time-chip{background:var(--bg);border:1px solid var(--border);border-radius:11px;padding:11px 6px;text-align:center;cursor:pointer;transition:all .2s}
+.time-chip.active{border-color:var(--accent);background:rgba(79,142,247,.1)}
+.time-chip:hover:not(.active){border-color:rgba(79,142,247,.4)}
+.time-chip-icon{font-size:20px;margin-bottom:4px}
+.time-chip-label{font-size:11px;font-weight:700;color:var(--muted)}
+.time-chip.active .time-chip-label{color:var(--accent)}
+
+.seat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.seat-chip{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:11px;text-align:center;cursor:pointer;transition:all .2s;font-weight:800;font-size:17px}
+.seat-chip.active{border-color:var(--accent);background:rgba(79,142,247,.1);color:var(--accent)}
+.seat-chip:hover:not(.active){border-color:rgba(79,142,247,.4)}
+
+/* STEPS */
+.steps{display:flex;align-items:center;gap:5px;margin-bottom:18px}
+.step{height:4px;border-radius:2px;background:var(--border);transition:all .3s;flex:1}
+.step.done{background:var(--accent)}
+.step.active{background:var(--accent2)}
+
+/* MAP */
+.map-wrap{position:relative;flex:1}
+#map{width:100%;height:100%}
+.map-overlay{position:absolute;z-index:10}
+.map-top-bar{top:16px;left:16px;right:16px;display:flex;gap:10px;pointer-events:none}
+.map-pill{background:rgba(15,17,23,.9);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:30px;padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;box-shadow:0 4px 20px rgba(0,0,0,.5);pointer-events:all}
+.pill-dot{width:8px;height:8px;border-radius:50%}
+.pill-dot.green{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.pill-dot.blue{background:var(--accent)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.map-stats-bar{bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:none}
+.stat-chip{background:rgba(15,17,23,.95);backdrop-filter:blur(14px);border:1px solid var(--border);border-radius:14px;padding:11px 18px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);min-width:88px}
+.stat-num{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-label{font-size:10px;color:var(--muted);margin-top:2px;font-weight:600;letter-spacing:.3px}
+
+/* TRACKING POPUP */
+.track-popup{bottom:90px;left:16px;right:16px;background:rgba(26,29,39,.97);backdrop-filter:blur(18px);border:1px solid var(--border);border-radius:20px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.track-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.track-avatar{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 2px 10px rgba(79,142,247,.4)}
+.track-name{font-weight:800;font-size:15px}
+.track-car{font-size:12px;color:var(--muted);margin-top:2px}
+.track-eta{margin-left:auto;text-align:right}
+.track-eta-num{font-size:28px;font-weight:900;color:var(--accent);line-height:1}
+.track-eta-label{font-size:11px;color:var(--muted);font-weight:600}
+.track-progress{background:var(--bg);border-radius:6px;height:5px;overflow:hidden;margin-bottom:12px}
+.track-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;transition:width 1s}
+.track-actions{display:flex;gap:8px}
+
+/* NOTIF */
+.notif-stack{position:fixed;top:80px;right:16px;z-index:1000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.notif{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:13px 15px;min-width:270px;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;gap:11px;align-items:flex-start;animation:slideIn .28s cubic-bezier(.34,1.56,.64,1);pointer-events:all}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+.notif-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.notif-body{flex:1}
+.notif-title{font-weight:700;font-size:13px;margin-bottom:2px}
+.notif-msg{font-size:12px;color:var(--muted);line-height:1.4}
+.notif-close{cursor:pointer;color:var(--muted);font-size:15px;flex-shrink:0;line-height:1;padding:2px}
+.notif-close:hover{color:var(--text)}
+.notif.success{border-left:3px solid var(--green)}
+.notif.info{border-left:3px solid var(--accent)}
+.notif.warning{border-left:3px solid var(--yellow)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
+.modal-bg.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:22px;padding:24px;width:92%;max-width:440px;box-shadow:0 24px 60px rgba(0,0,0,.7);animation:modalIn .22s cubic-bezier(.34,1.56,.64,1)}
+@keyframes modalIn{from{transform:scale(.93);opacity:0}to{transform:scale(1);opacity:1}}
+.modal-title{font-size:19px;font-weight:800;margin-bottom:4px}
+.modal-sub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5}
+.modal-actions{display:flex;gap:10px;margin-top:18px}
+
+/* RATING */
+.rating-stars{display:flex;gap:10px;justify-content:center;padding:14px 0}
+.star-btn{font-size:34px;cursor:pointer;transition:transform .1s;filter:grayscale(1) opacity(.35);line-height:1}
+.star-btn.lit{filter:none}
+.star-btn:hover{transform:scale(1.25);filter:none}
+
+/* MISC */
+.divider{height:1px;background:var(--border);margin:10px 0}
+.section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px}
+.stars-txt{color:var(--yellow);font-size:13px}
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px;vertical-align:middle;animation:pulse 1.5s infinite}
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty-icon{font-size:44px;margin-bottom:10px;opacity:.45}
+.empty-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:5px}
+.empty-desc{font-size:13px;line-height:1.5}
+
+.history-row{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:12px;padding:12px;cursor:pointer;transition:all .2s;border:1px solid transparent}
+.history-row:hover{background:rgba(79,142,247,.07);border-color:rgba(79,142,247,.2)}
+.h-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.h-icon.dr{background:rgba(79,142,247,.15)}
+.h-icon.ps{background:rgba(124,92,252,.15)}
+.h-body{flex:1}
+.h-route{font-weight:700;font-size:13px}
+.h-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.h-right{text-align:right}
+.h-status{font-size:12px;font-weight:700}
+.h-earn{font-size:13px;font-weight:800;color:var(--green);margin-top:2px}
+
+.blacklist-item{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border-radius:9px;padding:9px 13px;font-size:13px;margin-bottom:5px}
+.blacklist-name{font-weight:600}
+.blacklist-rm{cursor:pointer;color:var(--red);font-size:17px;line-height:1;padding:2px}
+.fave-item{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:9px;padding:9px 13px;margin-bottom:5px}
+.fave-av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:15px}
+.fave-name{flex:1;font-size:13px;font-weight:700}
+
+.confirm-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+.confirm-row{display:flex;gap:10px;font-size:13px;margin-bottom:8px;align-items:center}
+.confirm-row:last-child{margin-bottom:0}
+.confirm-key{color:var(--muted);width:80px;flex-shrink:0;font-size:12px}
+.confirm-val{font-weight:700;color:var(--text)}
+
+@media(max-width:768px){
+  .app{grid-template-columns:1fr;height:auto}
+  .map-wrap{height:280px}
+  .map-stats-bar{flex-wrap:wrap;justify-content:center;gap:8px}
+  .track-popup{left:8px;right:8px;bottom:8px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🚕</div>
+    <div>
+      <div class="logo-text">AndTaxi</div>
+      <div class="logo-sub">Andijon ↔ Toshkent</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="lang-btn" onclick="toggleLang()" id="langBtn">🇺🇿 UZ</button>
+    <div class="user-pill" onclick="showNotif('info','👤 Profil','Sardor Nazarov · ⭐ 4.8 · 47 safar')">
+      <div class="user-dot"></div>
+      <span id="hUserName">Sardor</span>
+      <span style="color:var(--muted)">▾</span>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- ═══ LEFT PANEL ═══ -->
+  <div class="panel">
+    <div class="panel-tabs">
+      <div class="tab active" id="tab-driver" onclick="switchTab('driver')">🚗 Haydovchi</div>
+      <div class="tab" id="tab-passenger" onclick="switchTab('passenger')">🧳 Yo'lovchi</div>
+      <div class="tab" id="tab-history" onclick="switchTab('history')">📜 Tarix</div>
+    </div>
+
+    <!-- ══ DRIVER PANE ══ -->
+    <div class="panel-content" id="pane-driver">
+
+      <!-- Active trip -->
+      <div id="dActiveWrap" style="display:none">
+        <div class="section-title"><span class="live-dot"></span>Faol safar</div>
+        <div class="card" style="border-color:rgba(34,197,94,.4)">
+          <div class="card-header">
+            <div class="card-title" id="dActiveDir">—</div>
+            <span class="badge badge-active">FAOL</span>
+          </div>
+          <div class="card-row"><span class="ico">⏰</span>Jo'nash: <strong id="dActiveTime">—</strong></div>
+          <div class="card-row"><span class="ico">💺</span>O'rinlar: <strong id="dActiveSeats">—</strong></div>
+          <div class="card-row"><span class="ico">💰</span>Narx: <strong id="dActivePrice">—</strong></div>
+          <div class="card-actions">
+            <button class="btn btn-danger" onclick="openFinishModal()">🏁 Yakunlash</button>
+            <button class="btn btn-secondary btn-sm" onclick="addEnRoute()">➕ Yo'ldagi yo'lovchi</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- New trip form -->
+      <div id="dNewForm">
+        <div class="section-title">Yangi safar e'lon qilish</div>
+
+        <div class="steps" id="dSteps">
+          <div class="step active"></div><div class="step"></div><div class="step"></div><div class="step"></div>
+        </div>
+
+        <!-- S1: Direction -->
+        <div id="ds1">
+          <div class="form-group">
+            <div class="form-label">Yo'nalish</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="dir-card active" id="ddir-at" onclick="dSelDir('at')">
+                <div class="dir-icon">🚀</div>
+                <div class="dir-info"><div class="dir-name">Andijon → Toshkent</div><div class="dir-dist">~350 km · 4-5 soat</div></div>
+                <div class="dir-check"></div>
+              </div>
+              <div class="dir-card" id="ddir-ta" onclick="dSelDir('ta')">
+                <div class="dir-icon">🔙</div>
+                <div class="dir-info"><div class="dir-name">Toshkent → Andijon</div><div class="dir-dist">~350 km · 4-5 soat</div></div>
+                <div class="dir-check"></div>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="dStep(2)">Davom etish →</button>
+        </div>
+
+        <!-- S2: Seats + price -->
+        <div id="ds2" style="display:none">
+          <div class="form-group">
+            <div class="form-label">Bo'sh o'rinlar</div>
+            <div class="seat-grid">
+              <div class="seat-chip" onclick="dSelSeats(1)">1</div>
+              <div class="seat-chip" onclick="dSelSeats(2)">2</div>
+              <div class="seat-chip" onclick="dSelSeats(3)">3</div>
+              <div class="seat-chip active" onclick="dSelSeats(4)">4</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Narx (so'm) — ixtiyoriy</div>
+            <input class="form-input" type="number" id="dPriceInput" placeholder="masalan: 120 000">
+          </div>
+          <div class="form-group">
+            <div class="form-label">Izoh — ixtiyoriy</div>
+            <input class="form-input" id="dNoteInput" placeholder="masalan: Katta bagaj yo'q">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-secondary btn-sm" onclick="dStep(1)">←</button>
+            <button class="btn btn-primary" onclick="dStep(3)">Davom etish →</button>
+          </div>
+        </div>
+
+        <!-- S3: Time -->
+        <div id="ds3" style="display:none">
+          <div class="form-group">
+            <div class="form-label">Jo'nash vaqti</div>
+            <div class="time-grid">
+              <div class="time-chip active" id="dt-now" onclick="dSelTime('now')"><div class="time-chip-icon">⚡</div><div class="time-chip-label">Hozir</div></div>
+              <div class="time-chip" id="dt-today" onclick="dSelTime('today')"><div class="time-chip-icon">📅</div><div class="time-chip-label">Bugun</div></div>
+              <div class="time-chip" id="dt-tomorrow" onclick="dSelTime('tomorrow')"><div class="time-chip-icon">📆</div><div class="time-chip-label">Ertaga</div></div>
+            </div>
+            <div id="dHourWrap" style="display:none;margin-top:10px">
+              <input class="form-input" type="time" id="dHourInput" value="08:00">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-secondary btn-sm" onclick="dStep(2)">←</button>
+            <button class="btn btn-primary" onclick="dStep(4)">Davom etish →</button>
+          </div>
+        </div>
+
+        <!-- S4: Confirm -->
+        <div id="ds4" style="display:none">
+          <div class="confirm-card">
+            <div class="section-title" style="margin-bottom:10px">Tasdiqlash</div>
+            <div class="confirm-row"><span class="confirm-key">🗺 Yo'nalish</span><span class="confirm-val" id="cDir">—</span></div>
+            <div class="confirm-row"><span class="confirm-key">💺 O'rinlar</span><span class="confirm-val" id="cSeats">—</span></div>
+            <div class="confirm-row"><span class="confirm-key">⏰ Vaqt</span><span class="confirm-val" id="cTime">—</span></div>
+            <div class="confirm-row" id="cPriceRow"><span class="confirm-key">💰 Narx</span><span class="confirm-val" id="cPrice">—</span></div>
+            <div class="confirm-row" id="cNoteRow"><span class="confirm-key">📝 Izoh</span><span class="confirm-val" id="cNote">—</span></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="announceTrip()">🚀 E'lon qilish</button>
+          <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="dStep(3)">← Orqaga</button>
+        </div>
+
+      </div><!-- /dNewForm -->
+
+      <!-- Matched passengers -->
+      <div id="dMatchedWrap" style="display:none">
+        <div class="section-title">Mos yo'lovchilar</div>
+        <div id="dMatchedCards"></div>
+      </div>
+
+      <!-- Blacklist -->
+      <div>
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+          🚫 Qora ro'yxat
+          <span style="font-size:11px;color:var(--accent);cursor:pointer" onclick="showNotif('info','🚫 Qora ro\'yxat','Jami '+state.blacklist.length+' kishi')">Barchasi</span>
+        </div>
+        <div id="blacklistWrap">
+          <div class="blacklist-item"><span class="blacklist-name">Jamshid T.</span><span class="blacklist-rm" onclick="rmBlacklist(this,'Jamshid T.')">✕</span></div>
+        </div>
+      </div>
+
+    </div><!-- /pane-driver -->
+
+    <!-- ══ PASSENGER PANE ══ -->
+    <div class="panel-content" id="pane-passenger" style="display:none">
+
+      <!-- Active request -->
+      <div id="pActiveWrap" style="display:none">
+        <div class="section-title"><span class="live-dot"></span>Faol so'rovingiz</div>
+        <div class="card" style="border-color:rgba(245,158,11,.35)">
+          <div class="card-header">
+            <div class="card-title" id="pActiveDir">—</div>
+            <span class="badge badge-waiting" id="pActiveBadge">KUTILMOQDA</span>
+          </div>
+          <div class="card-row"><span class="ico">💺</span><strong id="pActiveSeat">—</strong></div>
+          <div class="card-row"><span class="ico">⏰</span><strong id="pActiveTime">—</strong></div>
+          <div id="pDriverFoundWrap" style="display:none">
+            <div class="divider"></div>
+            <div class="card-row"><span class="ico">🚗</span>Haydovchi: <strong id="pDrvName">—</strong></div>
+            <div class="card-row"><span class="ico">📞</span>Tel: <strong id="pDrvPhone">—</strong></div>
+            <div class="card-row"><span class="ico">🚙</span>Mashina: <strong id="pDrvCar">—</strong></div>
+            <div class="card-row"><span class="ico">💰</span>Narx: <strong id="pDrvPrice">—</strong></div>
+            <div class="card-row"><span class="ico">⏱</span>Kelish: <strong id="pDrvEta" style="color:var(--accent)">—</strong></div>
+          </div>
+          <div class="card-actions" style="margin-top:12px">
+            <button class="btn btn-danger btn-sm" onclick="cancelReq()">❌ Bekor</button>
+            <button class="btn btn-secondary btn-sm" onclick="openDelayModal()">⏱ Kechikaman</button>
+            <button class="btn btn-secondary btn-sm" onclick="openGroupModal()">👥 Guruh</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- New request form -->
+      <div id="pNewForm">
+        <div class="section-title">Yangi so'rov</div>
+
+        <div class="steps" id="pSteps">
+          <div class="step active"></div><div class="step"></div><div class="step"></div><div class="step"></div>
+        </div>
+
+        <!-- PS1 -->
+        <div id="ps1">
+          <div class="form-group">
+            <div class="form-label">Yo'nalish</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div class="dir-card active" id="pdir-at" onclick="pSelDir('at')">
+                <div class="dir-icon">🚀</div>
+                <div class="dir-info"><div class="dir-name">Andijon → Toshkent</div><div class="dir-dist">~350 km · 4-5 soat</div></div>
+                <div class="dir-check"></div>
+              </div>
+              <div class="dir-card" id="pdir-ta" onclick="pSelDir('ta')">
+                <div class="dir-icon">🔙</div>
+                <div class="dir-info"><div class="dir-name">Toshkent → Andijon</div><div class="dir-dist">~350 km · 4-5 soat</div></div>
+                <div class="dir-check"></div>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:12px;width:100%" onclick="pStep(2)">Davom etish →</button>
+        </div>
+
+        <!-- PS2 -->
+        <div id="ps2" style="display:none">
+          <div class="form-group">
+            <div class="form-label">O'rindiq joyi</div>
+            <div class="seg-control">
+              <button class="seg-btn active" id="sbfront" onclick="pSelPos('front')">🪑 Oldi o'rindiq</button>
+              <button class="seg-btn" id="sbback" onclick="pSelPos('back')">💺 Orqa o'rindiq</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Kishi soni</div>
+            <div class="seat-grid" style="grid-template-columns:repeat(3,1fr)">
+              <div class="seat-chip active" onclick="pSelCount(1)">1</div>
+              <div class="seat-chip" onclick="pSelCount(2)">2</div>
+              <div class="seat-chip" onclick="pSelCount(3)">3</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="form-label">Izoh — ixtiyoriy</div>
+            <input class="form-input" id="pNoteInput" placeholder="masalan: Katta chemodan bor">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-secondary btn-sm" onclick="pStep(1)">←</button>
+            <button class="btn btn-primary" onclick="pStep(3)">Davom etish →</button>
+          </div>
+        </div>
+
+        <!-- PS3 -->
+        <div id="ps3" style="display:none">
+          <div class="form-group">
+            <div class="form-label">Vaqt oralig'i</div>
+            <div class="time-grid">
+              <div class="time-chip active" id="pt-now" onclick="pSelTime('now')"><div class="time-chip-icon">⚡</div><div class="time-chip-label">Hozir</div></div>
+              <div class="time-chip" id="pt-today" onclick="pSelTime('today')"><div class="time-chip-icon">📅</div><div class="time-chip-label">Bugun</div></div>
+              <div class="time-chip" id="pt-tomorrow" onclick="pSelTime('tomorrow')"><div class="time-chip-icon">📆</div><div class="time-chip-label">Ertaga</div></div>
+            </div>
+            <div id="pTimeRange" style="display:none;margin-top:10px">
+              <div style="display:flex;gap:8px;align-items:center">
+                <input class="form-input" type="time" id="pTimeFrom" value="07:00">
+                <span style="color:var(--muted);font-weight:700">—</span>
+                <input class="form-input" type="time" id="pTimeTo" value="11:00">
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <button class="btn btn-secondary btn-sm" onclick="pStep(2)">←</button>
+            <button class="btn btn-primary" onclick="pStep(4)">Davom etish →</button>
+          </div>
+        </div>
+
+        <!-- PS4 confirm -->
+        <div id="ps4" style="display:none">
+          <div class="confirm-card">
+            <div class="section-title" style="margin-bottom:10px">Tasdiqlash</div>
+            <div class="confirm-row"><span class="confirm-key">🗺 Yo'nalish</span><span class="confirm-val" id="pcDir">—</span></div>
+            <div class="confirm-row"><span class="confirm-key">💺 O'rindiq</span><span class="confirm-val" id="pcSeat">—</span></div>
+            <div class="confirm-row"><span class="confirm-key">👥 Kishi</span><span class="confirm-val" id="pcCount">—</span></div>
+            <div class="confirm-row"><span class="confirm-key">⏰ Vaqt</span><span class="confirm-val" id="pcTime">—</span></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%" onclick="sendRequest()">📤 So'rov yuborish</button>
+          <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="pStep(3)">← Orqaga</button>
+        </div>
+
+      </div><!-- /pNewForm -->
+
+      <!-- Favourite drivers -->
+      <div>
+        <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+          ⭐ Sevimli haydovchilar
+          <span style="font-size:10px;color:var(--muted)">ustuvorlik beriladi</span>
+        </div>
+        <div id="favWrap">
+          <div class="fave-item"><div class="fave-av">👨</div><div class="fave-name">Akbar Daminov</div><div class="stars-txt">⭐ 4.9</div></div>
+          <div class="fave-item"><div class="fave-av">👩</div><div class="fave-name">Nodira Saidova</div><div class="stars-txt">⭐ 5.0</div></div>
+        </div>
+      </div>
+
+    </div><!-- /pane-passenger -->
+
+    <!-- ══ HISTORY PANE ══ -->
+    <div class="panel-content" id="pane-history" style="display:none">
+
+      <div class="section-title">Safarlar tarixi</div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="history-row">
+          <div class="h-icon dr">🚗</div>
+          <div class="h-body"><div class="h-route">Andijon → Toshkent</div><div class="h-meta">4 yo'lovchi · 15.06.2026 · 08:00</div></div>
+          <div class="h-right"><div class="h-status" style="color:var(--green)">✅ Yakunlandi</div><div class="h-earn">+480 000 so'm</div></div>
+        </div>
+        <div class="history-row">
+          <div class="h-icon ps">🧳</div>
+          <div class="h-body"><div class="h-route">Toshkent → Andijon</div><div class="h-meta">Haydovchi: Akbar · 12.06.2026</div></div>
+          <div class="h-right"><div class="h-status" style="color:var(--green)">✅ Yakunlandi</div><div class="h-status stars-txt" style="margin-top:2px">⭐ 5.0</div></div>
+        </div>
+        <div class="history-row">
+          <div class="h-icon dr">🚗</div>
+          <div class="h-body"><div class="h-route">Andijon → Toshkent</div><div class="h-meta">2 yo'lovchi · 10.06.2026 · 14:00</div></div>
+          <div class="h-right"><div class="h-status" style="color:var(--green)">✅ Yakunlandi</div><div class="h-earn">+240 000 so'm</div></div>
+        </div>
+        <div class="history-row">
+          <div class="h-icon ps">🧳</div>
+          <div class="h-body"><div class="h-route">Andijon → Toshkent</div><div class="h-meta">Haydovchi: Dilshod · 08.06.2026</div></div>
+          <div class="h-right"><div class="h-status" style="color:var(--green)">✅ Yakunlandi</div><div class="h-status stars-txt" style="margin-top:2px">⭐ 4.0</div></div>
+        </div>
+        <div class="history-row">
+          <div class="h-icon dr">🚗</div>
+          <div class="h-body"><div class="h-route">Toshkent → Andijon</div><div class="h-meta">1 yo'lovchi · 05.06.2026 · 09:00</div></div>
+          <div class="h-right"><div class="h-status" style="color:var(--red)">❌ Bekor qilindi</div></div>
+        </div>
+      </div>
+
+      <!-- Monthly summary -->
+      <div class="card" style="margin-top:4px">
+        <div class="section-title">Bu oy (Iyun 2026)</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:10px">
+          <div>
+            <div style="font-size:30px;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1">1 920 000</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">so'm · 12 ta safar</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:3px">O'rtacha reyting</div>
+            <div style="font-size:22px;font-weight:900;color:var(--yellow)">⭐ 4.8</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px">
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:800;color:var(--accent)">12</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">Safarlar</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:800;color:var(--green)">38</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">Yo'lovchilar</div>
+          </div>
+          <div style="background:var(--bg);border-radius:10px;padding:10px;text-align:center">
+            <div style="font-size:18px;font-weight:800;color:var(--yellow)">4.8⭐</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px">Reyting</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /pane-history -->
+
+  </div><!-- /panel -->
+
+  <!-- ═══ MAP ═══ -->
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <div class="map-overlay map-top-bar">
+      <div class="map-pill"><div class="pill-dot green"></div><span id="liveDrivers">3</span> faol haydovchi</div>
+      <div class="map-pill" style="margin-left:auto"><div class="pill-dot blue"></div><span id="waitingPass">7</span> kutayotgan yo'lovchi</div>
+    </div>
+
+    <div class="map-overlay map-stats-bar">
+      <div class="stat-chip"><div class="stat-num">1 240</div><div class="stat-label">Jami safarlar</div></div>
+      <div class="stat-chip"><div class="stat-num">48</div><div class="stat-label">Haydovchilar</div></div>
+      <div class="stat-chip"><div class="stat-num">312</div><div class="stat-label">Foydalanuvchilar</div></div>
+      <div class="stat-chip"><div class="stat-num">4.8⭐</div><div class="stat-label">O'rtacha reyting</div></div>
+    </div>
+
+    <!-- Track popup (yo'lovchi uchun) -->
+    <div class="map-overlay track-popup" id="trackPopup" style="display:none">
+      <div class="track-header">
+        <div class="track-avatar">🧔</div>
+        <div>
+          <div class="track-name" id="trackName">Akbar Toshmatov</div>
+          <div class="track-car" id="trackCar">Nexia 3 · Oq · 30 A 123 AA</div>
+        </div>
+        <div class="track-eta">
+          <div class="track-eta-num" id="trackEtaNum">8</div>
+          <div class="track-eta-label">daqiqa</div>
+        </div>
+      </div>
+      <div class="track-progress"><div class="track-bar" id="trackBar" style="width:20%"></div></div>
+      <div class="track-actions">
+        <button class="btn btn-primary" onclick="showNotif('info','📞 Qo\'ng\'iroq...','Haydovchi bilan bog\'lanilmoqda')">📞 Qo'ng'iroq</button>
+        <button class="btn btn-secondary" onclick="openDelayModal()">⏱ Kechikaman</button>
+        <button class="btn btn-secondary btn-sm btn-icon" onclick="document.getElementById('trackPopup').style.display='none'">✕</button>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /app -->
+
+<!-- NOTIF STACK -->
+<div class="notif-stack" id="notifStack"></div>
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- Rating -->
+<div class="modal-bg" id="ratingModal">
+  <div class="modal">
+    <div class="modal-title">⭐ Haydovchini baholang</div>
+    <div class="modal-sub">Safar yakunlandi. Haydovchi haqida fikringiz?</div>
+    <div class="rating-stars" id="ratingStars">
+      <span class="star-btn" onclick="selStar(1)">⭐</span>
+      <span class="star-btn" onclick="selStar(2)">⭐</span>
+      <span class="star-btn" onclick="selStar(3)">⭐</span>
+      <span class="star-btn" onclick="selStar(4)">⭐</span>
+      <span class="star-btn" onclick="selStar(5)">⭐</span>
+    </div>
+    <div class="form-group">
+      <input class="form-input" id="ratingComment" placeholder="Izoh qoldiring (ixtiyoriy)...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="submitRating()">✅ Yuborish</button>
+      <button class="btn btn-secondary" onclick="closeModal('ratingModal')">Keyinroq</button>
+    </div>
+  </div>
+</div>
+
+<!-- Finish trip -->
+<div class="modal-bg" id="finishModal">
+  <div class="modal">
+    <div class="modal-title">🏁 Safarni yakunlash</div>
+    <div class="modal-sub">Safar haqiqatan yakunlandimi?</div>
+    <div class="confirm-card">
+      <div class="confirm-row"><span class="confirm-key">🗺 Yo'nalish</span><span class="confirm-val" id="fDir">—</span></div>
+      <div class="confirm-row"><span class="confirm-key">👥 Yo'lovchilar</span><span class="confirm-val" id="fPassCount">—</span></div>
+      <div class="confirm-row"><span class="confirm-key">💰 Daromad</span><span class="confirm-val" id="fEarn" style="color:var(--green)">—</span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmFinish()">✅ Ha, yakunlash</button>
+      <button class="btn btn-secondary" onclick="closeModal('finishModal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delay -->
+<div class="modal-bg" id="delayModal">
+  <div class="modal">
+    <div class="modal-title">⏱ Kechikish bildirish</div>
+    <div class="modal-sub">Haydovchiga qancha kechikishingizni bildiring — u kutib turadi</div>
+    <div class="seg-control" style="margin-top:4px">
+      <button class="seg-btn active" onclick="selDelay(5,this)">5 min</button>
+      <button class="seg-btn" onclick="selDelay(10,this)">10 min</button>
+      <button class="seg-btn" onclick="selDelay(15,this)">15 min</button>
+      <button class="seg-btn" onclick="selDelay(30,this)">30 min</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmDelay()">📤 Yuborish</button>
+      <button class="btn btn-secondary" onclick="closeModal('delayModal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<!-- Group request -->
+<div class="modal-bg" id="groupModal">
+  <div class="modal">
+    <div class="modal-title">👥 Guruh so'rovi</div>
+    <div class="modal-sub">Do'stlaringiz uchun ham joy band qiling — bir haydovchida birga boring</div>
+    <div class="form-group" style="margin-top:4px">
+      <div class="form-label">Qo'shimcha kishilar</div>
+      <div class="seat-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="seat-chip active" onclick="selGroupEx(1,this)">+1</div>
+        <div class="seat-chip" onclick="selGroupEx(2,this)">+2</div>
+        <div class="seat-chip" onclick="selGroupEx(3,this)">+3</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="form-label">Do'st telefon raqami — ixtiyoriy</div>
+      <input class="form-input" id="friendPhone" placeholder="+998 90 000 00 00" type="tel">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmGroup()">📤 So'rov yuborish</button>
+      <button class="btn btn-secondary" onclick="closeModal('groupModal')">Bekor</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const state={
+  lang:'uz',
+  d:{ dir:'at', seats:4, time:'now', price:'', note:'', step:1, active:false },
+  p:{ dir:'at', pos:'front', count:1, time:'now', step:1, active:false },
+  selStar:0, selDelay:5, groupEx:1,
+  blacklist:['Jamshid T.'],
+  etaTimer:null
+};
+
+const DIRS={ at:'Andijon → Toshkent', ta:'Toshkent → Andijon' };
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  MAP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const map=L.map('map',{zoomControl:false}).setView([40.8,71.0],8);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'©CARTO',maxZoom:19}).addTo(map);
+L.control.zoom({position:'bottomright'}).addTo(map);
+
+const route=[[40.7821,72.3442],[40.6397,72.2356],[40.9983,71.6726],[40.5283,70.9422],[40.4736,71.7225],[40.3842,71.7843],[40.8393,68.6643],[40.4897,68.7842],[41.1097,69.0500],[41.0828,69.6397],[41.0169,70.1444],[41.2995,69.2401]];
+const cities=['Andijon','Asaka','Namangan','Qo\'qon','Marg\'ilon','Farg\'ona','Sirdaryo','Guliston','Yangiyo\'l','Ohangaron','Angren','Toshkent'];
+
+L.polyline(route,{color:'#4f8ef7',weight:3,opacity:.55,dashArray:'10,7'}).addTo(map);
+
+route.forEach((c,i)=>{
+  L.marker(c,{icon:L.divIcon({html:`<span style="color:#8890b0;font-size:9px;font-weight:700;white-space:nowrap;text-shadow:0 1px 3px #000;background:rgba(15,17,23,.7);padding:2px 5px;border-radius:4px">${cities[i]}</span>`,className:''})}).addTo(map);
+});
+
+const driverData=[
+  {pos:[40.85,72.1],name:'Akbar D.',car:'Nexia 3 · Oq',eta:8},
+  {pos:[41.05,70.45],name:'Sardor N.',car:'Cobalt · Kulrang',eta:22},
+  {pos:[41.18,69.75],name:'Dilshod K.',car:'Malibu · Qora',eta:5},
+];
+const passData=[[40.78,72.34],[41.01,71.6],[40.52,70.94],[41.22,69.48],[40.92,70.8],[41.29,69.28],[40.66,72.0]];
+
+function mkIcon(e,s=30){return L.divIcon({html:`<div style="font-size:${s}px;line-height:1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))">${e}</div>`,className:'',iconAnchor:[s/2,s/2]})}
+
+driverData.forEach(d=>{
+  L.marker(d.pos,{icon:mkIcon('🚕')}).addTo(map)
+    .bindPopup(`<div style="font-family:sans-serif;font-size:13px"><b>${d.name}</b><br>${d.car}<br><span style="color:#4f8ef7">~${d.eta} daqiqa</span></div>`)
+    .on('click',()=>openTrack(d));
+});
+passData.forEach(p=>L.marker(p,{icon:mkIcon('📍',20)}).addTo(map));
+
+function openTrack(d){
+  document.getElementById('trackName').textContent=d.name;
+  document.getElementById('trackCar').textContent=d.car;
+  document.getElementById('trackEtaNum').textContent=d.eta;
+  document.getElementById('trackBar').style.width=Math.max(5,100-d.eta*5)+'%';
+  document.getElementById('trackPopup').style.display='block';
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  TABS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function switchTab(t){
+  ['driver','passenger','history'].forEach(x=>{
+    document.getElementById('pane-'+x).style.display=x===t?'flex':'none';
+    document.getElementById('tab-'+x).classList.toggle('active',x===t);
+  });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  DRIVER FORM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function dSelDir(d){
+  state.d.dir=d;
+  document.getElementById('ddir-at').classList.toggle('active',d==='at');
+  document.getElementById('ddir-ta').classList.toggle('active',d==='ta');
+}
+function dSelSeats(n){
+  state.d.seats=n;
+  document.querySelectorAll('#ds2 .seat-chip').forEach((el,i)=>el.classList.toggle('active',i+1===n));
+}
+function dSelTime(t){
+  state.d.time=t;
+  ['now','today','tomorrow'].forEach(x=>document.getElementById('dt-'+x).classList.toggle('active',x===t));
+  document.getElementById('dHourWrap').style.display=t==='now'?'none':'block';
+}
+function dStep(n){
+  state.d.step=n;
+  [1,2,3,4].forEach(i=>{
+    document.getElementById('ds'+i).style.display=i===n?'block':'none';
+    document.querySelectorAll('#dSteps .step')[i-1].className='step'+(i<n?' done':i===n?' active':'');
+  });
+  if(n===4){
+    const p=document.getElementById('dPriceInput').value;
+    const nt=document.getElementById('dNoteInput').value;
+    document.getElementById('cDir').textContent=DIRS[state.d.dir];
+    document.getElementById('cSeats').textContent=state.d.seats+' ta o\'rin';
+    document.getElementById('cTime').textContent=state.d.time==='now'?'Hozir':(state.d.time==='today'?'Bugun ':'Ertaga ')+document.getElementById('dHourInput').value;
+    document.getElementById('cPriceRow').style.display=p?'flex':'none';
+    document.getElementById('cPrice').textContent=parseInt(p||0).toLocaleString()+' so\'m';
+    document.getElementById('cNoteRow').style.display=nt?'flex':'none';
+    document.getElementById('cNote').textContent=nt;
+  }
+}
+function announceTrip(){
+  state.d.active=true;
+  const p=document.getElementById('dPriceInput').value;
+  document.getElementById('dActiveDir').textContent=DIRS[state.d.dir];
+  document.getElementById('dActiveTime').textContent=state.d.time==='now'?'Hozir':document.getElementById('dHourInput').value;
+  document.getElementById('dActiveSeats').textContent=state.d.seats+' ta bo\'sh o\'rin';
+  document.getElementById('dActivePrice').textContent=p?parseInt(p).toLocaleString()+' so\'m':'Ko\'rsatilmagan';
+  document.getElementById('dActiveWrap').style.display='block';
+  document.getElementById('dNewForm').style.display='none';
+  dStep(1);
+  document.getElementById('dPriceInput').value='';
+  document.getElementById('dNoteInput').value='';
+  document.getElementById('dHourInput').value='08:00';
+  dSelTime('now');
+  showNotif('success','🚀 E\'lon qilindi!','Mos yo\'lovchilar qidirilmoqda...');
+  setTimeout(showMatched,1800);
+}
+function showMatched(){
+  const plist=[
+    {id:1,name:'Zulfiya A.',phone:'+998 90 123 45 67',seat:'Oldi 🪑',count:1,dist:2.3,rating:4.8},
+    {id:2,name:'Mansur K.',phone:'+998 91 987 65 43',seat:'Orqa 💺',count:2,dist:5.1,rating:4.5},
+    {id:3,name:'Feruza T.',phone:'+998 93 555 11 22',seat:'Orqa 💺',count:1,dist:8.7,rating:5.0},
+  ];
+  const html=plist.map(p=>`
+    <div class="card" id="pc${p.id}" style="margin-bottom:10px">
+      <div class="card-header">
+        <div class="card-title">${p.name}</div>
+        <div class="stars-txt">${'⭐'.repeat(Math.round(p.rating))} ${p.rating}</div>
+      </div>
+      <div class="card-row"><span class="ico">📞</span><strong>${p.phone}</strong></div>
+      <div class="card-row"><span class="ico">💺</span>${p.seat} · <strong>${p.count} kishi</strong></div>
+      <div class="card-row"><span class="ico">📍</span>${p.dist} km uzoqda</div>
+      <div class="card-actions">
+        <button class="btn btn-accept" onclick="acceptP(${p.id})">✅ Qabul</button>
+        <button class="btn btn-reject" onclick="rejectP(${p.id})">❌ Rad</button>
+        <button class="btn btn-secondary btn-sm btn-icon" title="Qora ro'yxat" onclick="addBL('${p.name}',${p.id})">🚫</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('dMatchedCards').innerHTML=html;
+  document.getElementById('dMatchedWrap').style.display='block';
+  showNotif('info','🎯 3 ta yo\'lovchi topildi!','Har birini ko\'rib chiqing');
+}
+function acceptP(id){
+  const c=document.getElementById('pc'+id);
+  if(!c)return;
+  c.style.opacity='.55'; c.style.pointerEvents='none';
+  c.querySelector('.card-actions').innerHTML='<span style="color:var(--green);font-size:13px;font-weight:700">✅ Qabul qilindi — aloqa qiling</span>';
+  showNotif('success','✅ Qabul qilindi','Yo\'lovchiga xabar yuborildi');
+}
+function rejectP(id){
+  const c=document.getElementById('pc'+id);
+  if(!c)return;
+  c.style.opacity='.35'; c.style.pointerEvents='none';
+  c.querySelector('.card-actions').innerHTML='<span style="color:var(--muted);font-size:13px">❌ Rad etildi</span>';
+}
+function addBL(name,id){
+  rejectP(id);
+  state.blacklist.push(name);
+  const el=document.createElement('div');
+  el.className='blacklist-item';
+  el.innerHTML=`<span class="blacklist-name">${name}</span><span class="blacklist-rm" onclick="rmBlacklist(this,'${name}')">✕</span>`;
+  document.getElementById('blacklistWrap').appendChild(el);
+  showNotif('warning','🚫 Qora ro\'yxatga qo\'shildi',name+' keyingi safar tavsiya qilinmaydi');
+}
+function rmBlacklist(el,name){
+  el.closest('.blacklist-item').remove();
+  state.blacklist=state.blacklist.filter(x=>x!==name);
+  showNotif('info','✅ Ro\'yxatdan chiqarildi','');
+}
+function addEnRoute(){
+  showNotif('info','📍 Yo\'ldagi yo\'lovchilar','Sizning hozirgi lokatsiyangiz atrofida qidirilmoqda...');
+  setTimeout(()=>showNotif('success','👤 1 ta yo\'lovchi topildi!','Bekzod · 1.2 km · 📞 +998 90 777 88 99'),2200);
+}
+function openFinishModal(){
+  document.getElementById('fDir').textContent=DIRS[state.d.dir];
+  document.getElementById('fPassCount').textContent='3 ta yo\'lovchi';
+  document.getElementById('fEarn').textContent=(state.d.seats*120000).toLocaleString()+' so\'m (taxminiy)';
+  openModal('finishModal');
+}
+function confirmFinish(){
+  closeModal('finishModal');
+  state.d.active=false;
+  document.getElementById('dActiveWrap').style.display='none';
+  document.getElementById('dNewForm').style.display='block';
+  document.getElementById('dMatchedWrap').style.display='none';
+  showNotif('success','🏁 Safar yakunlandi!','Yo\'lovchilarga baho so\'ralmoqda...');
+  setTimeout(()=>openModal('ratingModal'),1200);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  PASSENGER FORM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function pSelDir(d){
+  state.p.dir=d;
+  document.getElementById('pdir-at').classList.toggle('active',d==='at');
+  document.getElementById('pdir-ta').classList.toggle('active',d==='ta');
+}
+function pSelPos(pos){
+  state.p.pos=pos;
+  document.getElementById('sbfront').classList.toggle('active',pos==='front');
+  document.getElementById('sbback').classList.toggle('active',pos==='back');
+}
+function pSelCount(n){
+  state.p.count=n;
+  document.querySelectorAll('#ps2 .seat-chip').forEach((el,i)=>el.classList.toggle('active',i+1===n));
+}
+function pSelTime(t){
+  state.p.time=t;
+  ['now','today','tomorrow'].forEach(x=>document.getElementById('pt-'+x).classList.toggle('active',x===t));
+  document.getElementById('pTimeRange').style.display=t==='now'?'none':'flex';
+}
+function pStep(n){
+  state.p.step=n;
+  [1,2,3,4].forEach(i=>{
+    document.getElementById('ps'+i).style.display=i===n?'block':'none';
+    document.querySelectorAll('#pSteps .step')[i-1].className='step'+(i<n?' done':i===n?' active':'');
+  });
+  if(n===4){
+    document.getElementById('pcDir').textContent=DIRS[state.p.dir];
+    document.getElementById('pcSeat').textContent=state.p.pos==='front'?'🪑 Oldi o\'rindiq':'💺 Orqa o\'rindiq';
+    document.getElementById('pcCount').textContent=state.p.count+' kishi';
+    let tt='Hozir';
+    if(state.p.time!=='now'){
+      const fr=document.getElementById('pTimeFrom').value;
+      const to=document.getElementById('pTimeTo').value;
+      tt=(state.p.time==='today'?'Bugun ':'Ertaga ')+fr+' — '+to;
+    }
+    document.getElementById('pcTime').textContent=tt;
+  }
+}
+function sendRequest(){
+  state.p.active=true;
+  document.getElementById('pActiveDir').textContent=DIRS[state.p.dir];
+  document.getElementById('pActiveSeat').textContent=(state.p.pos==='front'?'🪑 Oldi':'💺 Orqa')+' · '+state.p.count+' kishi';
+  document.getElementById('pActiveTime').textContent=state.p.time==='now'?'Hozir':'Bugun · '+document.getElementById('pTimeFrom').value+' — '+document.getElementById('pTimeTo').value;
+  document.getElementById('pActiveWrap').style.display='block';
+  document.getElementById('pNewForm').style.display='none';
+  showNotif('success','✅ So\'rov yuborildi!','Haydovchi topilganda xabar beramiz');
+  setTimeout(simulateDriverFound,3800);
+}
+function simulateDriverFound(){
+  document.getElementById('pActiveBadge').textContent='TOPILDI';
+  document.getElementById('pActiveBadge').className='badge badge-matched';
+  document.getElementById('pDrvName').textContent='Akbar Toshmatov';
+  document.getElementById('pDrvPhone').textContent='+998 90 123 45 67';
+  document.getElementById('pDrvCar').textContent='Nexia 3 · Oq · 30 A 123 AA';
+  document.getElementById('pDrvPrice').textContent='120 000 so\'m';
+  document.getElementById('pDrvEta').textContent='~8 daqiqada yetib keladi';
+  document.getElementById('pDriverFoundWrap').style.display='block';
+  showNotif('success','🚗 Haydovchi topildi!','Akbar · Nexia 3 · ~8 daqiqa');
+  document.getElementById('trackPopup').style.display='block';
+  startEta();
+}
+function startEta(){
+  clearInterval(state.etaTimer);
+  let eta=8;
+  document.getElementById('trackEtaNum').textContent=eta;
+  document.getElementById('trackBar').style.width='5%';
+  state.etaTimer=setInterval(()=>{
+    eta--;
+    document.getElementById('trackEtaNum').textContent=Math.max(0,eta);
+    document.getElementById('trackBar').style.width=Math.min(100,(8-eta)/8*100)+'%';
+    if(eta<=0){
+      clearInterval(state.etaTimer);
+      showNotif('success','🚗 Haydovchi yetib keldi!','Yaxshi safar! 🙏');
+      document.getElementById('pDrvEta').textContent='Yetib keldi! ✅';
+    }
+  },2500);
+}
+function cancelReq(){
+  clearInterval(state.etaTimer);
+  state.p.active=false;
+  document.getElementById('pActiveWrap').style.display='none';
+  document.getElementById('pNewForm').style.display='block';
+  document.getElementById('trackPopup').style.display='none';
+  pStep(1);
+  showNotif('warning','❌ So\'rov bekor qilindi','');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  MODALS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal-bg').forEach(b=>b.addEventListener('click',e=>{if(e.target===b)b.classList.remove('open')}));
+
+function selStar(n){
+  state.selStar=n;
+  document.querySelectorAll('.star-btn').forEach((el,i)=>el.classList.toggle('lit',i<n));
+}
+function submitRating(){
+  if(!state.selStar){showNotif('warning','Yulduzcha tanlang','1 dan 5 gacha');return}
+  closeModal('ratingModal');
+  state.selStar=0;
+  document.querySelectorAll('.star-btn').forEach(el=>el.classList.remove('lit'));
+  document.getElementById('ratingComment').value='';
+  showNotif('success','⭐ Rahmat!','Bahoyingiz qabul qilindi');
+}
+function openDelayModal(){openModal('delayModal')}
+function selDelay(n,btn){
+  state.selDelay=n;
+  document.querySelectorAll('#delayModal .seg-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function confirmDelay(){
+  closeModal('delayModal');
+  showNotif('info',`⏱ ${state.selDelay} daqiqa kechikasiz`,`Haydovchiga xabar yuborildi`);
+}
+function openGroupModal(){openModal('groupModal')}
+function selGroupEx(n,btn){
+  state.groupEx=n;
+  document.querySelectorAll('#groupModal .seat-chip').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function confirmGroup(){
+  closeModal('groupModal');
+  showNotif('success',`👥 Guruh so\'rovi yuborildi!`,`${state.groupEx+1} kishilik joy band qilindi`);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  NOTIF
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showNotif(type,title,msg){
+  const icons={success:'✅',info:'ℹ️',warning:'⚠️'};
+  const el=document.createElement('div');
+  el.className=`notif ${type}`;
+  el.innerHTML=`<div class="notif-icon">${icons[type]}</div><div class="notif-body"><div class="notif-title">${title}</div>${msg?`<div class="notif-msg">${msg}</div>`:''}</div><div class="notif-close" onclick="this.closest('.notif').remove()">✕</div>`;
+  document.getElementById('notifStack').appendChild(el);
+  setTimeout(()=>el.remove(),5000);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  LANG
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function toggleLang(){
+  state.lang=state.lang==='uz'?'ru':'uz';
+  document.getElementById('langBtn').textContent=state.lang==='uz'?'🇺🇿 UZ':'🇷🇺 RU';
+  showNotif('info',state.lang==='uz'?'🇺🇿 O\'zbek tilida':'🇷🇺 Русский язык','');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  LIVE COUNTERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+setInterval(()=>{
+  document.getElementById('liveDrivers').textContent=Math.floor(Math.random()*4)+2;
+  document.getElementById('waitingPass').textContent=Math.floor(Math.random()*8)+4;
+},9000);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  INIT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+setTimeout(()=>showNotif('info','👋 Xush kelibsiz!','AndTaxi Web ilovasiga — Andijon ↔ Toshkent'),700);
+</script>
+</body>
+</html>
