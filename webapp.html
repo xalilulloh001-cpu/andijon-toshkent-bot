@@ -11,9 +11,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px 16px 16px;text-align:center;border-bottom:1px solid #2a2a4a;position:sticky;top:0;z-index:100}
 .header h1{font-size:24px;font-weight:800;background:linear-gradient(90deg,#f5c518,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .header p{font-size:12px;color:#888;margin-top:4px}
-.page{padding:16px;padding-bottom:80px}
+.page{padding:16px;padding-bottom:90px}
 .card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:16px;margin-bottom:12px}
-.card-title{font-size:12px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.card-title{font-size:11px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
 .role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
 .role-card{background:#1a1a2e;border:2px solid #2a2a4a;border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .3s}
 .role-card.selected{border-color:#f5c518;background:#2a2a1a}
@@ -26,10 +26,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-secondary{background:#2a2a4a;color:#fff}
 .btn-danger{background:#3a1a1a;color:#f44336;border:1px solid #f44336}
 .btn-green{background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
+.btn-outline{background:transparent;color:#f5c518;border:2px solid #f5c518}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .input-group{margin-bottom:12px}
 .input-label{font-size:12px;color:#888;margin-bottom:6px;display:block}
-.input{width:100%;padding:12px 14px;background:#2a2a4a;border:1px solid #3a3a5a;border-radius:12px;color:#fff;font-size:15px;outline:none}
+.input{width:100%;padding:13px 14px;background:#2a2a4a;border:1px solid #3a3a5a;border-radius:12px;color:#fff;font-size:16px;outline:none;transition:border .2s}
 .input:focus{border-color:#f5c518}
 .input::placeholder{color:#555}
 .steps{display:flex;justify-content:space-between;margin-bottom:20px;position:relative}
@@ -41,17 +42,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .step-label{font-size:10px;color:#888}
 .step.active .step-label{color:#f5c518}
 .step.done .step-label{color:#4caf50}
-.phone-box{background:#0f0f1a;border:2px solid #f5c518;border-radius:14px;padding:16px;text-align:center;margin:12px 0}
-.phone-num{font-size:22px;font-weight:800;color:#f5c518;letter-spacing:2px}
-.phone-label{font-size:11px;color:#888;margin-top:4px}
-.map-area{width:100%;height:160px;background:#0f0f1a;border-radius:14px;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#555;font-size:13px;margin-bottom:12px}
+.phone-display{background:#0f0f1a;border:2px solid #f5c518;border-radius:14px;padding:16px;text-align:center;margin:12px 0}
+.phone-number{font-size:22px;font-weight:800;color:#f5c518;letter-spacing:2px}
+.phone-sub{font-size:11px;color:#888;margin-top:4px}
+.map-area{width:100%;height:150px;background:#0f0f1a;border-radius:14px;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#555;font-size:13px;margin-bottom:12px}
 .tabs{display:flex;background:#1a1a2e;padding:8px 12px;gap:8px;border-bottom:1px solid #2a2a4a}
-.tab{flex:1;padding:10px;border:none;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;background:#2a2a4a;color:#888}
+.tab{flex:1;padding:10px;border:none;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;background:#2a2a4a;color:#888;transition:all .3s}
 .tab.active{background:linear-gradient(135deg,#f5c518,#ff6b35);color:#000}
 .info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2a2a4a}
 .info-row:last-child{border-bottom:none}
 .info-label{color:#888;font-size:13px}
 .info-value{font-weight:600;font-size:14px}
+.contact-box{background:linear-gradient(135deg,#1a2a1a,#1a1a2e);border:1px solid #4caf50;border-radius:16px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
+.contact-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f5c518,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.contact-info{flex:1}
+.contact-name{font-size:15px;font-weight:700}
+.contact-phone{font-size:13px;color:#4caf50;margin-top:2px}
 .driver-card{background:linear-gradient(135deg,#1a2a1a,#1a1a2e);border:1px solid #4caf50;border-radius:16px;padding:16px;margin-bottom:12px}
 .driver-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f5c518,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:20px}
@@ -62,24 +68,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
 .badge-green{background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
 .badge-yellow{background:#3a3a1a;color:#f5c518;border:1px solid #f5c518}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:#1a1a2e;border-radius:20px 20px 0 0;padding:24px 16px 32px;width:100%;max-width:500px;border-top:1px solid #2a2a4a}
+.modal-title{font-size:18px;font-weight:800;margin-bottom:6px}
+.modal-sub{font-size:13px;color:#888;margin-bottom:20px}
 .sos-btn{position:fixed;bottom:80px;right:16px;width:56px;height:56px;background:#f44336;border-radius:50%;border:none;font-size:11px;font-weight:900;color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(244,67,54,.5);z-index:200;animation:pulse 2s infinite;display:none}
 @keyframes pulse{0%,100%{box-shadow:0 4px 20px rgba(244,67,54,.5)}50%{box-shadow:0 4px 30px rgba(244,67,54,.9)}}
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
 .toast.show{opacity:1}
 .toast.err{background:#3a1a1a;color:#f44336;border-color:#f44336}
+.hidden{display:none}
 .text-gold{color:#f5c518}.text-green{color:#4caf50}.text-gray{color:#888}
 .text-sm{font-size:12px}.bold{font-weight:700}.text-center{text-align:center}
-.mt{margin-top:12px}.mb{margin-bottom:12px}.hidden{display:none}
-/* Telegram share button style */
-.tg-share-btn{
-  width:100%;padding:16px;border:2px solid #2481cc;border-radius:14px;
-  background:linear-gradient(135deg,#1a2a3a,#0d1f33);
-  color:#fff;font-size:15px;font-weight:700;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  margin-bottom:8px;transition:all .3s
-}
-.tg-share-btn:active{transform:scale(.98);background:#1a3a5a}
-.tg-icon{font-size:24px}
+.mt{margin-top:12px}.mb{margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -120,7 +122,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <button class="btn btn-primary" id="roleBtn" onclick="go(1)" disabled>Davom etish →</button>
   </div>
 
-  <!-- STEP 1: TELEGRAM RAQAM ULASH -->
+  <!-- STEP 1: TELEFON -->
   <div id="s1" class="hidden">
     <div class="steps">
       <div class="step active"><div class="step-circle">1</div><div class="step-label">Raqam</div></div>
@@ -128,37 +130,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="step"><div class="step-circle">3</div><div class="step-label">Tayyor</div></div>
     </div>
 
-    <div class="card text-center">
+    <div class="card">
       <div class="card-title">📱 Telefon raqam</div>
       <p class="text-gray text-sm mb">
-        Telegram tekshirgan raqamingizni ulang.<br>
-        Qo'shimcha kod <b>shart emas!</b>
+        Aloqa uchun raqamingizni kiriting.<br>
+        Haydovchi yoki yo'lovchi ko'radi.
       </p>
-
-      <!-- Telegram native share button -->
-      <button class="tg-share-btn" onclick="shareContact()">
-        <span class="tg-icon">✈️</span>
-        <span>Telegram raqamini ulash</span>
-      </button>
-
-      <!-- Raqam ulangandan keyin ko'rinadi -->
-      <div id="phoneShared" class="hidden">
-        <div class="phone-box">
-          <div class="phone-num" id="sharedPhone">—</div>
-          <div class="phone-label">✅ Telegram tasdiqlagan raqam</div>
-        </div>
-        <button class="btn btn-primary" onclick="go(2)">Davom etish →</button>
+      <div class="input-group">
+        <label class="input-label">O'zbekiston raqami</label>
+        <input class="input" id="phoneInp" type="tel"
+          placeholder="+998 90 123 45 67"
+          maxlength="13" oninput="fmtPhone(this)">
       </div>
+      <button class="btn btn-primary" onclick="confirmPhone()">
+        ✅ Raqamni tasdiqlash
+      </button>
     </div>
 
-    <div class="card" style="border-color:#2481cc22">
-      <p class="text-gray text-sm text-center">
-        🔒 Raqamni faqat Telegram biladi<br>
-        Boshqa hech kim ko'rmaydi
-      </p>
+    <!-- Raqam tasdiqlangandan keyin -->
+    <div id="phoneConfirmed" class="hidden">
+      <div class="phone-display">
+        <div class="phone-number" id="displayPhone">—</div>
+        <div class="phone-sub">✅ Aloqa raqami</div>
+      </div>
+      <button class="btn btn-primary" onclick="go(2)">Davom etish →</button>
+      <button class="btn btn-outline" onclick="changePhone()">✏️ Raqamni o'zgartirish</button>
     </div>
 
-    <button class="btn btn-secondary" onclick="go(0)">← Orqaga</button>
+    <button class="btn btn-secondary" onclick="go(0)" style="margin-top:4px">← Orqaga</button>
   </div>
 
   <!-- STEP 2: LOKATSIYA -->
@@ -168,12 +167,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="step active"><div class="step-circle">2</div><div class="step-label">Joylashuv</div></div>
       <div class="step"><div class="step-circle">3</div><div class="step-label">Tayyor</div></div>
     </div>
-
     <div class="card">
       <div class="card-title">📍 Joylashuv</div>
       <div class="map-area" id="mapBox">
-        <span style="font-size:32px">📍</span>
-        <span>Joylashuvingizni aniqlang</span>
+        <span style="font-size:32px">📍</span><span>Joylashuvingizni aniqlang</span>
       </div>
       <button class="btn btn-primary" onclick="getLoc()">📍 Joylashuvni aniqlash</button>
     </div>
@@ -181,7 +178,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <!-- Haydovchi uchun -->
     <div id="driverFields" class="hidden">
       <div class="card">
-        <div class="card-title">🚗 Mashina</div>
+        <div class="card-title">🚗 Mashina ma'lumotlari</div>
         <div class="input-group">
           <label class="input-label">Mashina turi</label>
           <input class="input" id="carMdl" placeholder="Cobalt, Malibu, Nexia...">
@@ -191,12 +188,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <input class="input" id="carNum" placeholder="01A 123 BC">
         </div>
         <div class="input-group">
-          <label class="input-label">O'rindiqlar soni</label>
+          <label class="input-label">Bo'sh o'rindiqlar soni</label>
           <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px">
-            <button class="btn btn-secondary" id="s1b" onclick="setSeat(1)" style="margin:0">1</button>
-            <button class="btn btn-secondary" id="s2b" onclick="setSeat(2)" style="margin:0">2</button>
-            <button class="btn btn-secondary" id="s3b" onclick="setSeat(3)" style="margin:0">3</button>
-            <button class="btn btn-secondary" id="s4b" onclick="setSeat(4)" style="margin:0">4</button>
+            <button class="btn btn-secondary" id="sb1" onclick="setSeat(1)" style="margin:0">1</button>
+            <button class="btn btn-secondary" id="sb2" onclick="setSeat(2)" style="margin:0">2</button>
+            <button class="btn btn-secondary" id="sb3" onclick="setSeat(3)" style="margin:0">3</button>
+            <button class="btn btn-secondary" id="sb4" onclick="setSeat(4)" style="margin:0">4</button>
           </div>
         </div>
       </div>
@@ -231,13 +228,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="step done"><div class="step-circle">✓</div><div class="step-label">Joylashuv</div></div>
       <div class="step active"><div class="step-circle">3</div><div class="step-label">Tayyor</div></div>
     </div>
-
-    <div class="text-center" style="padding:24px 0">
-      <div style="font-size:64px;margin-bottom:16px">🎉</div>
-      <h2 style="font-size:22px;margin-bottom:8px">Tayyor!</h2>
+    <div class="text-center" style="padding:20px 0">
+      <div style="font-size:60px;margin-bottom:12px">🎉</div>
+      <h2 style="font-size:22px;margin-bottom:6px">Tayyor!</h2>
     </div>
     <div class="card">
-      <div class="info-row"><span class="info-label">📱 Raqam</span><span class="info-value text-gold" id="sumPhone">—</span></div>
+      <div class="info-row"><span class="info-label">📱 Aloqa raqami</span><span class="info-value text-gold" id="sumPhone">—</span></div>
       <div class="info-row"><span class="info-label">🏷️ Rol</span><span class="info-value" id="sumRole">—</span></div>
       <div class="info-row"><span class="info-label">📍 Joylashuv</span><span class="info-value text-green">✅ Saqlandi</span></div>
     </div>
@@ -247,7 +243,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <!-- ===== MAIN APP ===== -->
 <div id="mainApp" class="hidden">
+
+  <!-- HOME TAB -->
   <div id="tabHome" class="page">
+
+    <!-- HAYDOVCHI -->
     <div id="driverHome" class="hidden">
       <div class="card">
         <div class="card-title">Holat</div>
@@ -256,26 +256,50 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="btn btn-green" id="qBtn" onclick="toggleQ()">🟢 Navbatga kirish</button>
       <div class="card">
         <div class="card-title">🗺️ Marshrut</div>
-        <div class="map-area"><span style="font-size:32px">🗺️</span><span>Yo'lovchilar topilganda ko'rinadi</span></div>
+        <div class="map-area">
+          <span style="font-size:32px">🗺️</span>
+          <span>Yo'lovchilar topilganda ko'rinadi</span>
+        </div>
       </div>
     </div>
 
+    <!-- YO'LOVCHI -->
     <div id="passHome" class="hidden">
       <div class="card">
         <div class="card-title">🔍 Taksi qidirish</div>
-        <div class="info-row"><span class="info-label">🟢 Qayerdan</span><span class="info-value text-gold">Andijon</span></div>
-        <div class="info-row"><span class="info-label">🔴 Qayerga</span><span class="info-value">Toshkent</span></div>
+        <div class="info-row">
+          <span class="info-label">🟢 Qayerdan</span>
+          <span class="info-value text-gold">Andijon</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">🔴 Qayerga</span>
+          <span class="info-value">Toshkent</span>
+        </div>
       </div>
-      <button class="btn btn-primary" id="srchBtn" onclick="searchTaxi()">🔍 Haydovchi qidirish</button>
+      <button class="btn btn-primary" id="srchBtn" onclick="searchTaxi()">
+        🔍 Haydovchi qidirish
+      </button>
       <div id="foundDriver" class="hidden">
         <div class="driver-card">
           <div class="driver-header">
             <div class="avatar">🚗</div>
-            <div><div class="bold">Haydovchi topildi!</div><div class="text-gray text-sm" id="dInfo">—</div></div>
+            <div>
+              <div class="bold" id="dName">—</div>
+              <div class="text-gray text-sm" id="dCar">—</div>
+            </div>
             <span class="badge badge-green">5⭐</span>
           </div>
+          <!-- Haydovchi aloqa raqami -->
+          <div class="contact-box" style="margin-bottom:12px">
+            <div class="contact-avatar">📞</div>
+            <div class="contact-info">
+              <div class="contact-name">Aloqa raqami</div>
+              <div class="contact-phone" id="dPhone">—</div>
+            </div>
+            <button onclick="callDriver()" style="background:#4caf50;border:none;border-radius:10px;padding:8px 14px;color:#fff;font-weight:700;cursor:pointer">📞</button>
+          </div>
           <div class="stat-grid">
-            <div class="stat-box"><div class="stat-val">3</div><div class="stat-lbl">O'rindiq</div></div>
+            <div class="stat-box"><div class="stat-val" id="dSeats">—</div><div class="stat-lbl">O'rindiq</div></div>
             <div class="stat-box"><div class="stat-val">~2km</div><div class="stat-lbl">Masofa</div></div>
             <div class="stat-box"><div class="stat-val">~5min</div><div class="stat-lbl">Kutish</div></div>
           </div>
@@ -288,18 +312,70 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
   </div>
 
+  <!-- TRIPS TAB -->
   <div id="tabTrips" class="page hidden">
     <div class="text-center text-gray text-sm mt">Triplar tarixi bu yerda ko'rinadi</div>
   </div>
 
+  <!-- PROFILE TAB -->
   <div id="tabProfile" class="page hidden">
     <div class="card">
-      <div class="info-row"><span class="info-label">👤 Ism</span><span class="info-value" id="profName">—</span></div>
-      <div class="info-row"><span class="info-label">📱 Raqam</span><span class="info-value" id="profPhone">—</span></div>
-      <div class="info-row"><span class="info-label">🏷️ Rol</span><span class="info-value" id="profRole">—</span></div>
-      <div class="info-row"><span class="info-label">⭐ Reyting</span><span class="info-value text-gold">5.0</span></div>
+      <div class="info-row">
+        <span class="info-label">👤 Ism</span>
+        <span class="info-value" id="profName">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">📱 Aloqa raqami</span>
+        <span class="info-value text-gold" id="profPhone">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">🏷️ Rol</span>
+        <span class="info-value" id="profRole">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">⭐ Reyting</span>
+        <span class="info-value text-gold">5.0</span>
+      </div>
     </div>
-    <button class="btn btn-danger" onclick="logout()">🚪 Chiqish</button>
+    <!-- Raqam o'zgartirish -->
+    <button class="btn btn-outline" onclick="showChangePhoneModal()">
+      ✏️ Aloqa raqamini o'zgartirish
+    </button>
+    <button class="btn btn-danger" onclick="logout()" style="margin-top:4px">🚪 Chiqish</button>
+  </div>
+</div>
+
+<!-- ===== RAQAM O'ZGARTIRISH MODAL ===== -->
+<div id="changePhoneModal" class="modal-overlay hidden" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-title">📱 Aloqa raqami</div>
+    <div class="modal-sub" id="modalSub">
+      Hozirgi raqam: <b id="modalCurrentPhone">—</b><br>
+      Ushbu raqam haydovchi/yo'lovchiga ko'rsatiladi
+    </div>
+
+    <div class="phone-display" id="modalPhoneDisplay">
+      <div class="phone-number" id="modalPhoneNum">—</div>
+      <div class="phone-sub">Joriy aloqa raqami</div>
+    </div>
+
+    <p class="text-gray text-sm mb" style="text-align:center">
+      Boshqa raqam ishlatmoqchimisiz?
+    </p>
+
+    <div class="input-group">
+      <label class="input-label">Yangi raqam (ixtiyoriy)</label>
+      <input class="input" id="newPhoneInp" type="tel"
+        placeholder="+998 90 123 45 67"
+        maxlength="13" oninput="fmtPhone(this)">
+    </div>
+
+    <button class="btn btn-primary" onclick="saveNewPhone()">
+      ✅ Shu raqamni ishlatish
+    </button>
+    <button class="btn btn-secondary" onclick="keepCurrentPhone()">
+      👍 Joriy raqam yaxshi
+    </button>
   </div>
 </div>
 
@@ -314,61 +390,136 @@ const API = window.location.hostname === 'localhost'
   ? 'http://localhost:8000'
   : 'https://andijon-toshkent-bot-production.up.railway.app';
 
-const USER_ID = tg?.initDataUnsafe?.user?.id || 0;
+const USER_ID   = tg?.initDataUnsafe?.user?.id || 0;
 const USER_NAME = tg?.initDataUnsafe?.user?.first_name || 'Foydalanuvchi';
+const STORAGE_KEY = 'andtaxi_user_' + USER_ID;
 
-let S = {role:null,phone:null,loc:null,seats:null,seatPref:null,inQ:false};
+// ===== STATE =====
+let S = {
+  role: null, phone: null, contactPhone: null,
+  loc: null, seats: null, seatPref: null, inQ: false
+};
+
+// ===== LOCAL STORAGE — saqlangan foydalanuvchi =====
+function loadUser(){
+  try{
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if(saved) return JSON.parse(saved);
+  }catch(e){}
+  return null;
+}
+
+function saveUser(data){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){}
+}
+
+// ===== ILOVANI OCHISHDA =====
+window.onload = function(){
+  const saved = loadUser();
+  if(saved && saved.phone && saved.role){
+    // Oldin ro'yxatdan o'tgan — raqam modal ko'rsat
+    S = {...S, ...saved};
+    showPhoneCheckModal(saved.phone);
+  }
+  // Aks holda reg flow ko'rinadi (default)
+};
+
+// ===== RAQAM TEKSHIRISH MODAL (QAYTA KIRGANDA) =====
+function showPhoneCheckModal(savedPhone){
+  document.getElementById('modalCurrentPhone').textContent = savedPhone;
+  document.getElementById('modalPhoneNum').textContent = savedPhone;
+  document.getElementById('modalSub').innerHTML =
+    `Aloqa uchun raqam: <b>${savedPhone}</b><br>Haydovchi/yo'lovchiga ko'rsatiladi`;
+  document.getElementById('changePhoneModal').classList.remove('hidden');
+}
+
+function keepCurrentPhone(){
+  document.getElementById('changePhoneModal').classList.add('hidden');
+  // Ro'yxatdan o'tgan user — to'g'ri appga o'tamiz
+  enterApp();
+}
+
+function saveNewPhone(){
+  const inp = document.getElementById('newPhoneInp').value;
+  const phone = normalizePhone(inp);
+  if(!phone){
+    // Bo'sh bo'lsa joriy raqamni saqla
+    keepCurrentPhone(); return;
+  }
+  S.phone = phone;
+  saveUser({...S, phone: phone});
+  document.getElementById('changePhoneModal').classList.add('hidden');
+  toast('✅ Raqam yangilandi: ' + phone);
+  enterApp();
+}
+
+function showChangePhoneModal(){
+  document.getElementById('modalCurrentPhone').textContent = S.phone || '—';
+  document.getElementById('modalPhoneNum').textContent = S.phone || '—';
+  document.getElementById('newPhoneInp').value = '';
+  document.getElementById('changePhoneModal').classList.remove('hidden');
+}
+
+function closeModal(e){
+  if(e.target.id === 'changePhoneModal')
+    document.getElementById('changePhoneModal').classList.add('hidden');
+}
 
 // ===== ROL =====
 function pickRole(r){
-  S.role=r;
-  document.getElementById('dCard').classList.toggle('selected',r==='driver');
-  document.getElementById('pCard').classList.toggle('selected',r==='passenger');
-  document.getElementById('roleBtn').disabled=false;
+  S.role = r;
+  document.getElementById('dCard').classList.toggle('selected', r==='driver');
+  document.getElementById('pCard').classList.toggle('selected', r==='passenger');
+  document.getElementById('roleBtn').disabled = false;
 }
 
 // ===== STEPS =====
 function go(n){
   ['s0','s1','s2','s3'].forEach((id,i)=>
-    document.getElementById(id).classList.toggle('hidden',i!==n));
+    document.getElementById(id).classList.toggle('hidden', i!==n));
   if(n===2){
-    document.getElementById('driverFields').classList.toggle('hidden',S.role!=='driver');
-    document.getElementById('passFields').classList.toggle('hidden',S.role!=='passenger');
+    document.getElementById('driverFields').classList.toggle('hidden', S.role!=='driver');
+    document.getElementById('passFields').classList.toggle('hidden', S.role!=='passenger');
   }
   if(n===3){
-    document.getElementById('sumPhone').textContent = S.phone||'—';
+    document.getElementById('sumPhone').textContent = S.phone || '—';
     document.getElementById('sumRole').textContent =
       S.role==='driver' ? '🚗 Haydovchi' : '👤 Yo\'lovchi';
   }
 }
 
-// ===== TELEGRAM CONTACT SHARE (OTP shart emas!) =====
-function shareContact(){
-  if(!tg){
-    // Browser-da test uchun
-    S.phone = '+998901234567';
-    document.getElementById('sharedPhone').textContent = S.phone;
-    document.getElementById('phoneShared').classList.remove('hidden');
-    toast('✅ Raqam ulandi! (test rejim)');
-    return;
-  }
+// ===== TELEFON FORMAT =====
+function fmtPhone(el){
+  let v = el.value.replace(/\D/g,'');
+  if(!v.startsWith('998')) v = '998' + v;
+  v = v.substring(0,12);
+  el.value = '+' + v;
+}
 
-  // Telegram WebApp native contact request
-  tg.requestContact((ok, contact) => {
-    if(ok && contact?.contact){
-      const raw = contact.contact.phone_number || '';
-      // Normallashtirish
-      let digits = raw.replace(/\D/g,'');
-      if(!digits.startsWith('998')) digits = '998' + digits.slice(-9);
-      S.phone = '+' + digits;
+function normalizePhone(raw){
+  let digits = raw.replace(/\D/g,'');
+  if(digits.startsWith('998') && digits.length===12) return '+'+digits;
+  if(digits.length===9) return '+998'+digits;
+  if(digits.startsWith('0') && digits.length===10) return '+998'+digits.slice(1);
+  return null;
+}
 
-      document.getElementById('sharedPhone').textContent = S.phone;
-      document.getElementById('phoneShared').classList.remove('hidden');
-      toast('✅ Raqam ulandi!');
-    } else {
-      toast('❌ Ruxsat berilmadi','err');
-    }
-  });
+// ===== RAQAM TASDIQLASH (Birinchi marta) =====
+function confirmPhone(){
+  const phone = normalizePhone(document.getElementById('phoneInp').value);
+  if(!phone){ toast('❌ Raqam noto\'g\'ri!','err'); return; }
+  S.phone = phone;
+  document.getElementById('displayPhone').textContent = phone;
+  document.getElementById('phoneConfirmed').classList.remove('hidden');
+  document.getElementById('phoneInp').closest('.card').style.display = 'none';
+  toast('✅ Raqam qabul qilindi!');
+}
+
+function changePhone(){
+  S.phone = null;
+  document.getElementById('phoneConfirmed').classList.add('hidden');
+  document.getElementById('phoneInp').closest('.card').style.display = 'block';
+  document.getElementById('phoneInp').value = '';
 }
 
 // ===== LOKATSIYA =====
@@ -377,7 +528,7 @@ function getLoc(){
   box.innerHTML='<span style="font-size:32px">⏳</span><span>Aniqlanmoqda...</span>';
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      S.loc={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      S.loc={lat:pos.coords.latitude, lng:pos.coords.longitude};
       box.innerHTML=`<span style="font-size:32px">✅</span>
         <span class="text-green bold">Joylashuv aniqlandi!</span>
         <span class="text-gray text-sm">${S.loc.lat.toFixed(4)}, ${S.loc.lng.toFixed(4)}</span>`;
@@ -391,7 +542,7 @@ function getLoc(){
 function setSeat(n){
   S.seats=n;
   [1,2,3,4].forEach(i=>{
-    const b=document.getElementById('s'+i+'b');
+    const b=document.getElementById('sb'+i);
     b.style.background=i===n?'#f5c518':'';
     b.style.color=i===n?'#000':'';
   });
@@ -403,28 +554,39 @@ function setSeatPref(p){
   document.getElementById('backCard').classList.toggle('selected',p==='back');
 }
 
-// ===== START APP =====
-async function startApp(){
-  try{
-    await fetch(`${API}/api/register`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({user_id:USER_ID,role:S.role,phone:S.phone,location:S.loc})
-    });
-  }catch(e){}
-
+// ===== ILOVAGA KIRISH (saqlangan user) =====
+function enterApp(){
   document.getElementById('regFlow').classList.add('hidden');
   document.getElementById('mainApp').classList.remove('hidden');
   document.getElementById('appTabs').classList.remove('hidden');
   document.getElementById('sosBtn').style.display='block';
 
-  document.getElementById('profName').textContent=USER_NAME;
-  document.getElementById('profPhone').textContent=S.phone||'—';
-  document.getElementById('profRole').textContent=S.role==='driver'?'🚗 Haydovchi':'👤 Yo\'lovchi';
+  document.getElementById('profName').textContent = USER_NAME;
+  document.getElementById('profPhone').textContent = S.phone||'—';
+  document.getElementById('profRole').textContent =
+    S.role==='driver' ? '🚗 Haydovchi' : '👤 Yo\'lovchi';
 
   if(S.role==='driver') document.getElementById('driverHome').classList.remove('hidden');
   else document.getElementById('passHome').classList.remove('hidden');
+}
+
+// ===== RO'YXATDAN O'TISH (birinchi marta) =====
+async function startApp(){
+  // Saqlash
+  saveUser({role:S.role, phone:S.phone, seatPref:S.seatPref, seats:S.seats});
+
+  try{
+    await fetch(`${API}/api/register`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        user_id:USER_ID, role:S.role,
+        phone:S.phone, location:S.loc
+      })
+    });
+  }catch(e){}
 
   toast('🎉 Xush kelibsiz, '+USER_NAME+'!');
+  enterApp();
 }
 
 // ===== TABS =====
@@ -437,7 +599,7 @@ function showTab(name,el){
   el.classList.add('active');
 }
 
-// ===== DRIVER =====
+// ===== DRIVER QUEUE =====
 function toggleQ(){
   S.inQ=!S.inQ;
   const btn=document.getElementById('qBtn');
@@ -453,20 +615,40 @@ function toggleQ(){
   }
 }
 
-// ===== PASSENGER =====
+// ===== PASSENGER SEARCH =====
+// Namunali haydovchi (keyinchalik API dan keladi)
+const fakeDriver = {
+  name: 'Jasur Toshmatov',
+  car: 'Cobalt · 01A 234 BC',
+  phone: '+998901234567',
+  seats: 3
+};
+
 function searchTaxi(){
   const btn=document.getElementById('srchBtn');
   btn.disabled=true; btn.textContent='⏳ Qidiryapmiz...';
   setTimeout(()=>{
+    // Haydovchi ma'lumotlarini ko'rsat
+    document.getElementById('dName').textContent = fakeDriver.name;
+    document.getElementById('dCar').textContent = fakeDriver.car;
+    document.getElementById('dPhone').textContent = fakeDriver.phone;
+    document.getElementById('dSeats').textContent = fakeDriver.seats;
     document.getElementById('foundDriver').classList.remove('hidden');
     btn.disabled=false; btn.textContent='🔍 Haydovchi qidirish';
     toast('🚗 Haydovchi topildi!');
   },2000);
 }
+
+function callDriver(){
+  const phone = document.getElementById('dPhone').textContent;
+  window.location.href = 'tel:' + phone;
+}
+
 function acceptOffer(){
   document.getElementById('foundDriver').classList.add('hidden');
-  toast('✅ Haydovchi qabul qilindi!');
+  toast('✅ Haydovchi qabul qilindi! U kelmoqda...');
 }
+
 function rejectOffer(){
   document.getElementById('foundDriver').classList.add('hidden');
   toast('❌ Rad etildi');
@@ -490,6 +672,7 @@ async function doSOS(){
 
 // ===== LOGOUT =====
 function logout(){
+  localStorage.removeItem(STORAGE_KEY);
   S={role:null,phone:null,loc:null,seats:null,seatPref:null,inQ:false};
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('appTabs').classList.add('hidden');
@@ -497,7 +680,9 @@ function logout(){
   document.getElementById('regFlow').classList.remove('hidden');
   document.getElementById('driverHome').classList.add('hidden');
   document.getElementById('passHome').classList.add('hidden');
-  document.getElementById('phoneShared').classList.add('hidden');
+  document.getElementById('phoneConfirmed').classList.add('hidden');
+  const card = document.getElementById('phoneInp')?.closest('.card');
+  if(card) card.style.display='block';
   ['s1','s2','s3'].forEach(id=>document.getElementById(id).classList.add('hidden'));
   document.getElementById('s0').classList.remove('hidden');
 }
