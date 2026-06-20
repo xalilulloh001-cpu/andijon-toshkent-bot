@@ -613,3 +613,75 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# =========== WEBAPP HANDLER ===========
+from aiogram.types import WebAppInfo
+
+@router.message(Command("app"))
+async def open_webapp(message: types.Message):
+    """Web ko'rinishda ochish"""
+    webapp_url = os.getenv("WEBAPP_URL", "https://xalilulloh001-cpu.github.io/andijon-toshkent-bot/webapp.html")
+    
+    await message.answer(
+        "🚕 *AndTaxi Web App*\n\nQuyidagi tugmani bosing:",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[[
+                KeyboardButton(
+                    text="🚕 AndTaxi ochish",
+                    web_app=WebAppInfo(url=webapp_url)
+                )
+            ]],
+            resize_keyboard=True
+        ),
+        parse_mode="Markdown"
+    )
+
+@router.message(F.web_app_data)
+async def webapp_data_received(message: types.Message):
+    """WebApp-dan kelgan ma'lumotlarni qayta ishlash"""
+    import json
+    try:
+        data = json.loads(message.web_app_data.data)
+        action = data.get('action', '')
+
+        if action == 'send_otp':
+            phone = data.get('phone')
+            success, code = await VerificationService.send_otp_via_telegram(bot, message.from_user.id)
+            if success:
+                await message.answer(f"📨 Tasdiqlash kodi yuborildi: `{code}`", parse_mode="Markdown")
+
+        elif action == 'register':
+            role = '🚗 Haydovchi' if data.get('role') == 'driver' else '👤 Yo\'lovchi'
+            await message.answer(
+                f"✅ *Ro'yxatdan o'tdingiz!*\n\n"
+                f"Rol: {role}\n"
+                f"Telefon: {data.get('phone', '—')}",
+                parse_mode="Markdown"
+            )
+
+        elif action == 'join_queue':
+            await message.answer("🟢 Navbatga kirdingiz! Yo'lovchilar kutilmoqda...")
+
+        elif action == 'leave_queue':
+            await message.answer("🔴 Navbatdan chiqdingiz.")
+
+        elif action == 'search_taxi':
+            await message.answer("🔍 Haydovchi qidiryapmiz...")
+
+        elif action == 'accept_driver':
+            await message.answer("✅ Haydovchi qabul qilindi! U siz tomon kelmoqda.")
+
+        elif action == 'sos':
+            lat = data.get('lat')
+            lng = data.get('lng')
+            await VerificationService.send_sos_alert(
+                bot, ADMIN_IDS,
+                message.from_user.full_name,
+                message.from_user.id,
+                lat, lng
+            )
+            await message.answer("🚨 SOS xabari adminga yuborildi!")
+
+    except Exception as e:
+        logger.error(f"WebApp data error: {e}")
