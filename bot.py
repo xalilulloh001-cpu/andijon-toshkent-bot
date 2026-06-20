@@ -32,7 +32,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8961922618:AAFENS26vL5bVO1mBGrHDWjQRdOlnLW_jtg")
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "0").split(",")))
 
 bot = Bot(token=BOT_TOKEN)
