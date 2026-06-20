@@ -1,11 +1,15 @@
 """
-AndTaxi Bot - Main Bot Handler (COMPLETE FIXES)
-Trip cancellation, PIN verification, notification history, admin moderation
+AndTaxi Bot - Main Handler
+FLOW:
+  1. /start → rol tanlash
+  2. "Raqamni ulash" tugmasi → Telegram contact share (real telefon raqam)
+  3. Bot Telegram orqali 6 raqamli OTP yuboradi
+  4. Foydalanuvchi OTP kiritadi → tasdiqlandi ✅
 """
 
-import logging
 import asyncio
-from typing import Optional
+import logging
+import os
 from datetime import datetime, timedelta
 from hashlib import sha256
 
@@ -13,359 +17,599 @@ from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-
-from database import db
-from sms_service import sms_service
-from matching import matching_engine, seat_tracker
-from ban_system import ban_system, rating_moderation
-from config import (
-    TELEGRAM_BOT_TOKEN, MESSAGES, FEATURES, ADMIN_IDS,
-    OFFER_TIMEOUT_MINUTES
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import (
+    ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    ReplyKeyboardRemove
 )
 
-logging.basicConfig(level=logging.INFO)
+from sms_service import VerificationService
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dp = Dispatcher()
-main_router = Router()
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "0").split(",")))
 
-# ===== FSM STATES =====
-class DriverRegistration(StatesGroup):
-    waiting_for_phone = State()
-    waiting_for_sms_code = State()
-    waiting_for_pin = State()  # FIX #1
-    waiting_for_location = State()
-    waiting_for_seats = State()
-    waiting_for_vehicle_info = State()
-    active = State()
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
+router = Router()
 
-class PassengerRegistration(StatesGroup):
-    waiting_for_phone = State()
-    waiting_for_sms_code = State()
-    waiting_for_pin = State()  # FIX #1
-    waiting_for_location = State()
-    waiting_for_destination = State()
-    waiting_for_seat_preference = State()
-    active = State()
+# ===================== FSM STATES =====================
 
-class TripCancellation(StatesGroup):  # FIX #7
-    waiting_for_reason = State()
+class DriverStates(StatesGroup):
+    choosing_role     = State()
+    sharing_contact   = State()   # QADAM 1: Telegram contact
+    entering_otp      = State()   # QADAM 2: OTP tasdiqlash
+    entering_location = State()
+    entering_seats    = State()
+    entering_vehicle  = State()
+    active            = State()
 
-class AdminPanel(StatesGroup):
-    choosing_action = State()
-    viewing_ratings = State()  # FIX #9
+class PassengerStates(StatesGroup):
+    choosing_role     = State()
+    sharing_contact   = State()   # QADAM 1: Telegram contact
+    entering_otp      = State()   # QADAM 2: OTP tasdiqlash
+    entering_location = State()
+    entering_seat_pref = State()
+    active            = State()
 
-# ===== FIX #1: PIN VERIFICATION AFTER SMS =====
-@main_router.message(StateFilter(DriverRegistration.waiting_for_sms_code))
-async def driver_sms_code(message: types.Message, state: FSMContext):
-    """Haydovchi SMS kodini tasdiqlash"""
-    user_id = message.from_user.id
-    code = message.text.strip()
-    
-    data = await state.get_data()
-    expected_code = data.get('code')
-    
-    if code != expected_code:
-        await message.answer("❌ Kod noto'g'ri! Iltimos qayta urinib ko'ring.")
-        return
-    
-    success = await db.verify_code(user_id, code)
-    
-    if success:
-        await message.answer("✅ SMS tasdiqlandi!\n📌 Endi 4-raqamli PIN yarating:")
-        await state.set_state(DriverRegistration.waiting_for_pin)
-    else:
-        await message.answer("❌ Tasdiqlash muvaffaqiyatsiz bo'ldi!")
+class TripCancel(StatesGroup):
+    entering_reason = State()
 
-@main_router.message(StateFilter(DriverRegistration.waiting_for_pin))
-async def driver_set_pin(message: types.Message, state: FSMContext):
-    """
-    FIX #1: Driver PIN belgilash
-    4 raqamli PIN
-    """
-    user_id = message.from_user.id
-    pin = message.text.strip()
-    
-    if not (len(pin) == 4 and pin.isdigit()):
-        await message.answer("❌ PIN 4 raqamli bo'lishi kerak! (0000-9999)")
-        return
-    
-    success = await db.set_user_pin(user_id, pin)
-    
-    if success:
-        await message.answer("✅ PIN saqlandi!")
-        await db.update_user(user_id, role='driver')
-        
-        keyboard = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="📍 Lokatsiyani yuborish", 
-                               request_location=True)]
-            ],
-            resize_keyboard=True
-        )
-        
-        await message.answer(
-            MESSAGES['driver_location_request'],
-            reply_markup=keyboard
-        )
-        
-        await state.set_state(DriverRegistration.waiting_for_location)
+# ===================== KEYBOARDS =====================
 
-# ... (Yo'lovchi uchun ham xuddi shaydaagi kabi)
-
-# ===== FIX #3: OFFER EXPIRATION CHECK BEFORE ACCEPTANCE =====
-@main_router.callback_query(F.data.startswith("accept_offer_"))
-async def accept_offer_with_validation(callback: types.CallbackQuery, state: FSMContext):
-    """
-    FIX #3: Taklif muddati tekshiriladi
-    """
-    try:
-        parts = callback.data.split("_")
-        driver_id = int(parts[2])
-        passenger_id = callback.from_user.id
-        group_id = int(parts[3])
-        
-        async with db.pool.acquire() as conn:
-            offer = await conn.fetchrow("""
-            SELECT * FROM driver_offers
-            WHERE driver_id = $1 AND passenger_id = $2 AND group_id = $3
-            """, driver_id, passenger_id, group_id)
-            
-            # ===== FIX #3: Check expiration =====
-            if not offer:
-                await callback.answer("❌ Taklif topilmadi!", show_alert=True)
-                return
-            
-            if offer['offer_expires_at'] < datetime.now():
-                await conn.execute("""
-                UPDATE driver_offers SET response_status = 'expired'
-                WHERE group_id = $1 AND passenger_id = $2
-                """, group_id, passenger_id)
-                
-                await callback.answer(
-                    "❌ Taklif muddati tugadi! (5 daqiqa)",
-                    show_alert=True
-                )
-                return
-            
-            # Proceed with acceptance
-            success, seat = await matching_engine.check_and_match_passenger(
-                passenger_id, group_id
-            )
-            
-            if success:
-                await callback.answer(f"✅ Qabul qilindi! {seat.upper()} o'rindiq", show_alert=True)
-            else:
-                await callback.answer(f"❌ {seat}", show_alert=True)
-    
-    except Exception as e:
-        logger.error(f"Error accepting offer: {e}")
-        await callback.answer("❌ Xatolik yuz berdi", show_alert=True)
-
-# ===== FIX #7: TRIP CANCELLATION =====
-@main_router.command("cancel_trip")
-async def cmd_cancel_trip(message: types.Message, state: FSMContext):
-    """
-    FIX #7: Trip bekor qilish
-    """
-    user_id = message.from_user.id
-    
-    # Check active trip
-    async with db.pool.acquire() as conn:
-        trip = await conn.fetchrow("""
-        SELECT id FROM trips
-        WHERE (driver_id = $1 OR id IN (
-            SELECT trip_id FROM trips t
-            JOIN group_members gm ON t.group_id = gm.group_id
-            WHERE gm.passenger_id = $1
-        ))
-        AND status = 'active'
-        LIMIT 1
-        """, user_id)
-        
-        if not trip:
-            await message.answer("❌ Faol trip-ingiz yo'q!")
-            return
-    
-    await message.answer(
-        "❌ Trip-ni bekor qilmoqchisiz?\n\n"
-        "⚠️ 3 marta bekor qilsa 24 soat ban!\n\n"
-        "Sababi nima?",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="🚗 Mashinada muammo")],
-                [KeyboardButton(text="👤 Yo'lovchida muammo")],
-                [KeyboardButton(text="🛣️ Yo'lda muammo")],
-                [KeyboardButton(text="Bekor qilish")]
-            ],
-            resize_keyboard=True
-        )
+def kb_role():
+    """Rol tanlash klaviaturasi"""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🚗 Haydovchi")],
+            [KeyboardButton(text="👤 Yo'lovchi")],
+        ],
+        resize_keyboard=True
     )
-    
-    await state.set_state(TripCancellation.waiting_for_reason)
-    await state.update_data(trip_id=trip['id'])
 
-@main_router.message(StateFilter(TripCancellation.waiting_for_reason))
-async def handle_trip_cancellation_reason(message: types.Message, state: FSMContext):
+def kb_share_contact():
     """
-    FIX #7: Trip cancellation sababini qayd qilish
+    QADAM 1: Telegram contact sharing tugmasi
+    Foydalanuvchi bosadi → Telegram o'zi real raqamni beradi
     """
-    if message.text == "Bekor qilish":
-        await message.answer("❌ Bekor qilindi")
-        await state.clear()
-        return
-    
-    data = await state.get_data()
-    trip_id = data['trip_id']
-    user_id = message.from_user.id
-    reason = message.text
-    
-    user = await db.get_user(user_id)
-    cancelled_by = 'driver' if user['role'] == 'driver' else 'passenger'
-    
-    success, error = await ban_system.handle_trip_cancellation(
-        trip_id, user_id, cancelled_by, reason
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(
+                text="📱 Raqamni ulash",
+                request_contact=True        # ← Telegram'ning o'zi raqamni beradi
+            )],
+            [KeyboardButton(text="❌ Bekor qilish")]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
     )
-    
-    if success:
-        await message.answer(
-            f"✅ {error}",
-            reply_markup=types.ReplyKeyboardRemove()
-        )
-    else:
-        await message.answer(f"❌ {error}")
-    
+
+def kb_seat_pref():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="⬆️ Old o'rindiq (qimmat)")],
+            [KeyboardButton(text="⬇️ Orqa o'rindiq (arzon)")],
+        ],
+        resize_keyboard=True
+    )
+
+def kb_seats():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="1"), KeyboardButton(text="2")],
+            [KeyboardButton(text="3"), KeyboardButton(text="4")],
+        ],
+        resize_keyboard=True
+    )
+
+def kb_main_driver():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🟢 Navbatga kirish"),
+             KeyboardButton(text="🔴 Navbatdan chiqish")],
+            [KeyboardButton(text="📊 Mening hisobim"),
+             KeyboardButton(text="🆘 SOS")],
+        ],
+        resize_keyboard=True
+    )
+
+def kb_main_passenger():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🚕 Taksi chaqirish")],
+            [KeyboardButton(text="📊 Mening hisobim"),
+             KeyboardButton(text="🆘 SOS")],
+            [KeyboardButton(text="❌ Trip bekor qilish")],
+        ],
+        resize_keyboard=True
+    )
+
+def kb_location():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📍 Lokatsiyamni yuborish",
+                            request_location=True)],
+            [KeyboardButton(text="❌ Bekor qilish")]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+# ===================== /start =====================
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
 
-# ===== FIX #9: ADMIN RATING MODERATION =====
-@main_router.callback_query(F.data == "admin_moderation")
-async def admin_moderation_panel(callback: types.CallbackQuery):
-    """
-    FIX #9: Admin reyting moderatsiyasi
-    """
-    user_id = callback.from_user.id
-    
-    if user_id not in ADMIN_IDS:
-        await callback.answer("❌ Ruxsat yo'q!")
-        return
-    
-    flagged = await rating_moderation.get_pending_ratings()
-    
-    if not flagged:
-        await callback.message.answer("✅ Tekshirilishi kerak bo'lgan reyting yo'q!")
-        await callback.answer()
-        return
-    
-    text = "🚩 **Tekshirilishi kerak bo'lgan reyting-lar:**\n\n"
-    
-    for flag in flagged[:10]:
-        text += (
-            f"ID: {flag['rating_id']}\n"
-            f"👤 Reyting bermagan: {flag['rater_name']}\n"
-            f"⭐ Yulduz: {flag['stars']}/5\n"
-            f"💬 Sharh: {flag['comment'][:50]}...\n"
-            f"🚩 Sabab: {flag['reason']}\n"
-            f"─────────────────────\n\n"
-        )
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Tasdiqlash", callback_data=f"approve_rating_{flagged[0]['id']}"),
-            InlineKeyboardButton(text="❌ O'chirish", callback_data=f"delete_rating_{flagged[0]['id']}")
-        ]
-    ])
-    
-    await callback.message.answer(text, reply_markup=keyboard)
-    await callback.answer()
-
-@main_router.callback_query(F.data.startswith("approve_rating_"))
-async def approve_rating_callback(callback: types.CallbackQuery):
-    """Reyting-ni tasdiqlash"""
-    admin_id = callback.from_user.id
-    flag_id = int(callback.data.split("_")[-1])
-    
-    await rating_moderation.approve_rating(flag_id, admin_id)
-    
-    await callback.message.edit_text("✅ Reyting tasdiqlandi!")
-    await callback.answer()
-
-@main_router.callback_query(F.data.startswith("delete_rating_"))
-async def delete_rating_callback(callback: types.CallbackQuery):
-    """Reyting-ni o'chirish"""
-    admin_id = callback.from_user.id
-    flag_id = int(callback.data.split("_")[-1])
-    
-    await rating_moderation.delete_rating(flag_id, admin_id)
-    
-    await callback.message.edit_text("❌ Reyting o'chirildi!")
-    await callback.answer()
-
-# ===== FIX #13: NOTIFICATION HISTORY =====
-@main_router.command("notifications")
-async def cmd_view_notifications(message: types.Message):
-    """
-    FIX #13: Foydalanuvchining bildirishnomalar tarixini ko'rish
-    """
     user_id = message.from_user.id
-    
-    notifications = await db.get_user_notifications(user_id, limit=20)
-    
-    if not notifications:
-        await message.answer("📭 Bildirishnomangiz yo'q!")
-        return
-    
-    text = "📬 **Bildirishnomalar tarixik:**\n\n"
-    
-    for notif in notifications:
-        read_mark = "✅" if notif['is_read'] else "🔔"
-        created = notif['created_at'].strftime("%H:%M")
-        
-        text += (
-            f"{read_mark} [{created}] {notif['title']}\n"
-            f"   {notif['message'][:80]}...\n\n"
-        )
-    
-    await message.answer(text)
-    
-    # Mark all as read
-    for notif in notifications:
-        await db.mark_notification_read(notif['id'])
+    name = message.from_user.first_name or "Do'st"
 
-# ===== RATING FLAGGING =====
-@main_router.message(F.text == "🚩 Flag rating")
-async def flag_rating_command(message: types.Message):
-    """Shubhali reyting-larni flag qilish (admin)"""
-    user_id = message.from_user.id
-    
-    if user_id not in ADMIN_IDS:
-        await message.answer("❌ Faqat admin!")
-        return
-    
     await message.answer(
-        "Reyting ID-sini va sababi kiriting:\n"
-        "Masalan: 123 Yolg'on sharh"
+        f"🚕 *AndTaxi'ga xush kelibsiz, {name}!*\n\n"
+        f"Andijon ↔ Toshkent yo'nalishi\n\n"
+        f"Siz kimсiz?",
+        reply_markup=kb_role(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(DriverStates.choosing_role)
+
+
+# ===================== ROL TANLASH =====================
+
+@router.message(F.text == "🚗 Haydovchi",
+                StateFilter(DriverStates.choosing_role))
+async def choose_driver(message: types.Message, state: FSMContext):
+    await state.update_data(role="driver")
+
+    await message.answer(
+        "🚗 *Haydovchi sifatida ro'yxatdan o'tish*\n\n"
+        "📱 *1-qadam:* Telefon raqamingizni ulang\n"
+        "_(Telegram o'zi real raqamingizni beradi)_",
+        reply_markup=kb_share_contact(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(DriverStates.sharing_contact)
+
+
+@router.message(F.text == "👤 Yo'lovchi",
+                StateFilter(DriverStates.choosing_role))
+async def choose_passenger(message: types.Message, state: FSMContext):
+    await state.update_data(role="passenger")
+
+    await message.answer(
+        "👤 *Yo'lovchi sifatida ro'yxatdan o'tish*\n\n"
+        "📱 *1-qadam:* Telefon raqamingizni ulang\n"
+        "_(Telegram o'zi real raqamingizni beradi)_",
+        reply_markup=kb_share_contact(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(PassengerStates.sharing_contact)
+
+
+# ===================== QADAM 1: CONTACT SHARE =====================
+
+async def handle_contact_shared(message: types.Message, state: FSMContext, role: str):
+    """
+    Foydalanuvchi "Raqamni ulash" bosdi → Telegram real raqamni berdi
+    Endi OTP yuboramiz
+    """
+    contact = message.contact
+    phone = VerificationService.normalize_phone(contact.phone_number)
+
+    if not phone:
+        await message.answer(
+            "❌ Telefon raqam noto'g'ri!\n"
+            "Iltimos qayta urinib ko'ring.",
+            reply_markup=kb_share_contact()
+        )
+        return
+
+    # Raqamni saqlab qo'yamiz
+    await state.update_data(phone=phone)
+
+    # ===== QADAM 2: OTP yuborish =====
+    success, code = await VerificationService.send_otp_via_telegram(
+        bot, message.from_user.id
     )
 
-# ... (boshqa handlers o'zgarmagan)
+    if not success:
+        await message.answer("❌ Kod yuborishda xato. Qayta /start bosing.")
+        return
 
-# ===== DISPATCHER =====
-dp.include_router(main_router)
+    # Kodni va vaqtni saqlaymiz
+    await state.update_data(
+        otp_code=code,
+        otp_sent_at=datetime.now().isoformat()
+    )
+
+    await message.answer(
+        f"✅ Raqam ulandi: *{phone}*\n\n"
+        f"📨 *2-qadam:* Telegram-ga kod yubordik\n"
+        f"Yuqoridagi 6 raqamli kodni kiriting:\n\n"
+        f"⏰ 10 daqiqa vaqtingiz bor",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="Markdown"
+    )
+
+    # Keyingi holatga o'tamiz
+    if role == "driver":
+        await state.set_state(DriverStates.entering_otp)
+    else:
+        await state.set_state(PassengerStates.entering_otp)
+
+
+@router.message(F.contact, StateFilter(DriverStates.sharing_contact))
+async def driver_contact_shared(message: types.Message, state: FSMContext):
+    await handle_contact_shared(message, state, "driver")
+
+
+@router.message(F.contact, StateFilter(PassengerStates.sharing_contact))
+async def passenger_contact_shared(message: types.Message, state: FSMContext):
+    await handle_contact_shared(message, state, "passenger")
+
+
+# Agar contact o'rniga matn yozsa
+@router.message(StateFilter(DriverStates.sharing_contact,
+                             PassengerStates.sharing_contact))
+async def contact_not_shared(message: types.Message, state: FSMContext):
+    if message.text == "❌ Bekor qilish":
+        await state.clear()
+        await message.answer("❌ Bekor qilindi.", reply_markup=ReplyKeyboardRemove())
+        return
+
+    await message.answer(
+        "⚠️ Iltimos *\"📱 Raqamni ulash\"* tugmasini bosing!\n"
+        "Matn yozish orqali raqam qabul qilinmaydi.",
+        reply_markup=kb_share_contact(),
+        parse_mode="Markdown"
+    )
+
+
+# ===================== QADAM 2: OTP TASDIQLASH =====================
+
+async def handle_otp_entry(message: types.Message, state: FSMContext, role: str):
+    """
+    Foydalanuvchi OTP kodni kiritdi → tekshiramiz
+    """
+    entered_code = message.text.strip()
+    data = await state.get_data()
+
+    saved_code = data.get("otp_code")
+    sent_at_str = data.get("otp_sent_at")
+
+    # Vaqt tekshiruvi (10 daqiqa)
+    if sent_at_str:
+        sent_at = datetime.fromisoformat(sent_at_str)
+        if datetime.now() - sent_at > timedelta(minutes=10):
+            await message.answer(
+                "⏰ Kod muddati tugadi!\n"
+                "Qayta /start bosing.",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            await state.clear()
+            return
+
+    # Kod tekshiruvi
+    if entered_code != saved_code:
+        await message.answer(
+            "❌ Kod noto'g'ri!\n"
+            "Qayta urinib ko'ring (kod Telegram-da yuborilgan)."
+        )
+        return
+
+    # ✅ TASDIQLANDI
+    phone = data.get("phone", "")
+
+    await message.answer(
+        f"✅ *Tasdiqlandi!*\n\n"
+        f"📱 Raqam: {phone}\n"
+        f"🔐 Hisob xavfsizlashtirildi",
+        parse_mode="Markdown"
+    )
+
+    # Keyingi qadam
+    if role == "driver":
+        await message.answer(
+            "📍 *3-qadam:* Joylashuvingizni yuboring",
+            reply_markup=kb_location(),
+            parse_mode="Markdown"
+        )
+        await state.set_state(DriverStates.entering_location)
+    else:
+        await message.answer(
+            "📍 *3-qadam:* Joylashuvingizni yuboring",
+            reply_markup=kb_location(),
+            parse_mode="Markdown"
+        )
+        await state.set_state(PassengerStates.entering_location)
+
+
+@router.message(StateFilter(DriverStates.entering_otp))
+async def driver_otp_entry(message: types.Message, state: FSMContext):
+    await handle_otp_entry(message, state, "driver")
+
+
+@router.message(StateFilter(PassengerStates.entering_otp))
+async def passenger_otp_entry(message: types.Message, state: FSMContext):
+    await handle_otp_entry(message, state, "passenger")
+
+
+# ===================== LOKATSIYA =====================
+
+@router.message(F.location, StateFilter(DriverStates.entering_location))
+async def driver_location(message: types.Message, state: FSMContext):
+    lat = message.location.latitude
+    lng = message.location.longitude
+    await state.update_data(lat=lat, lng=lng)
+
+    await message.answer(
+        f"✅ Joylashuv saqlandi!\n\n"
+        f"🪑 *4-qadam:* Necha o'rindiq bor?",
+        reply_markup=kb_seats(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(DriverStates.entering_seats)
+
+
+@router.message(F.location, StateFilter(PassengerStates.entering_location))
+async def passenger_location(message: types.Message, state: FSMContext):
+    lat = message.location.latitude
+    lng = message.location.longitude
+    await state.update_data(lat=lat, lng=lng)
+
+    await message.answer(
+        "✅ Joylashuv saqlandi!\n\n"
+        "🪑 *Qaysi o'rindiqni xohlaysiz?*",
+        reply_markup=kb_seat_pref(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(PassengerStates.entering_seat_pref)
+
+
+@router.message(StateFilter(DriverStates.entering_location,
+                             PassengerStates.entering_location))
+async def location_not_sent(message: types.Message):
+    if message.text == "❌ Bekor qilish":
+        return
+    await message.answer(
+        "⚠️ Iltimos *\"📍 Lokatsiyamni yuborish\"* tugmasini bosing!",
+        reply_markup=kb_location(),
+        parse_mode="Markdown"
+    )
+
+
+# ===================== HAYDOVCHI O'RINDIQ =====================
+
+@router.message(F.text.in_(["1","2","3","4"]),
+                StateFilter(DriverStates.entering_seats))
+async def driver_seats(message: types.Message, state: FSMContext):
+    seats = int(message.text)
+    await state.update_data(seats=seats)
+
+    await message.answer(
+        f"✅ {seats} ta o'rindiq!\n\n"
+        "🚗 *5-qadam:* Mashina ma'lumotlari\n"
+        "_(Masalan: Cobalt 01B123AB)_",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(DriverStates.entering_vehicle)
+
+
+@router.message(StateFilter(DriverStates.entering_vehicle))
+async def driver_vehicle(message: types.Message, state: FSMContext):
+    vehicle = message.text.strip()
+    if len(vehicle) < 5:
+        await message.answer("❌ Mashina ma'lumotlarini to'liqroq kiriting!")
+        return
+
+    data = await state.get_data()
+    await state.update_data(vehicle=vehicle)
+
+    await message.answer(
+        f"🎉 *Ro'yxatdan o'tdingiz!*\n\n"
+        f"📱 Raqam: {data.get('phone')}\n"
+        f"📍 Joylashuv: saqlandi\n"
+        f"🪑 O'rindiq: {data.get('seats')} ta\n"
+        f"🚗 Mashina: {vehicle}\n\n"
+        f"Navbatga kirish uchun tugmani bosing 👇",
+        reply_markup=kb_main_driver(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(DriverStates.active)
+
+
+# ===================== YO'LOVCHI O'RINDIQ =====================
+
+@router.message(F.text.in_(["⬆️ Old o'rindiq (qimmat)",
+                              "⬇️ Orqa o'rindiq (arzon)"]),
+                StateFilter(PassengerStates.entering_seat_pref))
+async def passenger_seat_pref(message: types.Message, state: FSMContext):
+    is_front = "Old" in message.text
+    await state.update_data(seat_pref="front" if is_front else "back")
+
+    data = await state.get_data()
+
+    seat_emoji = "⬆️ Old" if is_front else "⬇️ Orqa"
+    price_note = "_(Biroz qimmatroq)_" if is_front else "_(Arzonroq)_"
+
+    await message.answer(
+        f"🎉 *Ro'yxatdan o'tdingiz!*\n\n"
+        f"📱 Raqam: {data.get('phone')}\n"
+        f"📍 Joylashuv: saqlandi\n"
+        f"🪑 O'rindiq: {seat_emoji} {price_note}\n\n"
+        f"Taksi chaqirish uchun tugmani bosing 👇",
+        reply_markup=kb_main_passenger(),
+        parse_mode="Markdown"
+    )
+    await state.set_state(PassengerStates.active)
+
+
+# ===================== ASOSIY TUGMALAR =====================
+
+@router.message(F.text == "🟢 Navbatga kirish",
+                StateFilter(DriverStates.active))
+async def driver_join_queue(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    await message.answer(
+        f"✅ *Navbatga kirdingiz!*\n\n"
+        f"🚗 {data.get('vehicle', '-')}\n"
+        f"🪑 {data.get('seats', 0)} ta o'rindiq\n\n"
+        f"Yo'lovchilar topilganda xabar olasiz...",
+        parse_mode="Markdown"
+    )
+
+
+@router.message(F.text == "🔴 Navbatdan chiqish",
+                StateFilter(DriverStates.active))
+async def driver_leave_queue(message: types.Message, state: FSMContext):
+    await message.answer("🔴 Navbatdan chiqdingiz.")
+
+
+@router.message(F.text == "🚕 Taksi chaqirish",
+                StateFilter(PassengerStates.active))
+async def passenger_call_taxi(message: types.Message, state: FSMContext):
+    await message.answer(
+        "🔍 *Haydovchi qidiryapmiz...*\n\n"
+        "Tez orada haydovchi topiladi ⏳",
+        parse_mode="Markdown"
+    )
+
+
+@router.message(F.text == "📊 Mening hisobim")
+async def my_profile(message: types.Message, state: FSMContext):
+    data = await state.get_data()
+    phone = data.get("phone", "Noma'lum")
+    role = data.get("role", "Noma'lum")
+
+    role_text = "🚗 Haydovchi" if role == "driver" else "👤 Yo'lovchi"
+
+    await message.answer(
+        f"👤 *Mening hisobim*\n\n"
+        f"📱 Raqam: {phone}\n"
+        f"🏷️ Rol: {role_text}\n"
+        f"⭐ Reyting: 5.0\n"
+        f"🚕 Triplar: 0",
+        parse_mode="Markdown"
+    )
+
+
+@router.message(F.text == "🆘 SOS")
+async def sos_handler(message: types.Message):
+    await message.answer(
+        "🚨 *SOS - Favqulodda yordam*\n\n"
+        "Joylashuvingizni yuboring:",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="📍 Joylashuvimni yubor",
+                                request_location=True)],
+                [KeyboardButton(text="❌ Bekor")]
+            ],
+            resize_keyboard=True
+        ),
+        parse_mode="Markdown"
+    )
+
+
+@router.message(F.location)
+async def sos_location_received(message: types.Message):
+    lat = message.location.latitude
+    lng = message.location.longitude
+    user = message.from_user
+
+    # Admin-larga xabar
+    await VerificationService.send_sos_alert(
+        bot, ADMIN_IDS,
+        user.full_name, user.id,
+        lat, lng
+    )
+
+    await message.answer(
+        "✅ *SOS xabari adminga yuborildi!*\n"
+        "Tez orada aloqa qilinadi.",
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode="Markdown"
+    )
+
+
+@router.message(F.text == "❌ Trip bekor qilish")
+async def cancel_trip_start(message: types.Message, state: FSMContext):
+    await message.answer(
+        "❌ Trip-ni bekor qilish sababi?",
+        reply_markup=ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🚗 Haydovchida muammo")],
+                [KeyboardButton(text="👤 Shaxsiy sabab")],
+                [KeyboardButton(text="🔙 Orqaga")]
+            ],
+            resize_keyboard=True
+        )
+    )
+    await state.set_state(TripCancel.entering_reason)
+
+
+@router.message(StateFilter(TripCancel.entering_reason))
+async def cancel_trip_reason(message: types.Message, state: FSMContext):
+    if message.text == "🔙 Orqaga":
+        await state.set_state(PassengerStates.active)
+        await message.answer("🔙 Orqaga", reply_markup=kb_main_passenger())
+        return
+
+    await message.answer(
+        "✅ Trip bekor qilindi.\n"
+        "⚠️ Yana 2 marta bekor qilsangiz ban bo'lasiz!",
+        reply_markup=kb_main_passenger()
+    )
+    await state.set_state(PassengerStates.active)
+
+
+# ===================== ADMIN =====================
+
+@router.message(Command("admin"))
+async def admin_panel(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ Ruxsat yo'q!")
+        return
+
+    await message.answer(
+        "👨‍💼 *Admin panel*\n\n"
+        "/stats — Statistika\n"
+        "/ban {user_id} — Foydalanuvchini bloklash\n"
+        "/unban {user_id} — Blokdan chiqarish",
+        parse_mode="Markdown"
+    )
+
+
+@router.message(Command("stats"))
+async def admin_stats(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    await message.answer(
+        "📊 *Statistika*\n\n"
+        "🚗 Faol haydovchilar: 0\n"
+        "👤 Navbatdagi yo'lovchilar: 0\n"
+        "🚕 Bugungi triplar: 0",
+        parse_mode="Markdown"
+    )
+
+
+# ===================== ISHGA TUSHIRISH =====================
 
 async def main():
-    """Bot ishga tushirish"""
-    await db.init()
-    await sms_service.init()
-    
-    logger.info("🚀 AndTaxi Bot started (FULLY FIXED)")
-    
-    try:
-        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
-    finally:
-        await sms_service.close()
-        await db.close()
-        await bot.session.close()
+    dp.include_router(router)
+
+    logger.info("🚀 AndTaxi Bot ishga tushmoqda...")
+    logger.info(f"👨‍💼 Admin IDs: {ADMIN_IDS}")
+
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+
 
 if __name__ == "__main__":
     asyncio.run(main())
