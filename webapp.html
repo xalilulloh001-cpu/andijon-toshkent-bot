@@ -6,591 +6,217 @@
 <title>AndTaxi</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: #0f0f1a;
-    color: #fff;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* HEADER */
-  .header {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    padding: 20px 16px 16px;
-    text-align: center;
-    border-bottom: 1px solid #2a2a4a;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .header h1 {
-    font-size: 24px;
-    font-weight: 800;
-    background: linear-gradient(90deg, #f5c518, #ff6b35);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: 1px;
-  }
-  .header p {
-    font-size: 12px;
-    color: #888;
-    margin-top: 4px;
-  }
-
-  /* TABS */
-  .tabs {
-    display: flex;
-    background: #1a1a2e;
-    padding: 8px 12px;
-    gap: 8px;
-    border-bottom: 1px solid #2a2a4a;
-  }
-  .tab {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    border-radius: 12px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    background: #2a2a4a;
-    color: #888;
-  }
-  .tab.active {
-    background: linear-gradient(135deg, #f5c518, #ff6b35);
-    color: #000;
-  }
-
-  /* PAGES */
-  .page { display: none; padding: 16px; }
-  .page.active { display: block; }
-
-  /* CARDS */
-  .card {
-    background: #1a1a2e;
-    border: 1px solid #2a2a4a;
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 12px;
-  }
-  .card-title {
-    font-size: 14px;
-    color: #888;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-
-  /* STATUS BADGE */
-  .badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 700;
-  }
-  .badge-green { background: #1a3a1a; color: #4caf50; border: 1px solid #4caf50; }
-  .badge-yellow { background: #3a3a1a; color: #f5c518; border: 1px solid #f5c518; }
-  .badge-red { background: #3a1a1a; color: #f44336; border: 1px solid #f44336; }
-
-  /* ROLE SELECT */
-  .role-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin: 16px 0;
-  }
-  .role-card {
-    background: #1a1a2e;
-    border: 2px solid #2a2a4a;
-    border-radius: 16px;
-    padding: 20px 12px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s;
-  }
-  .role-card:hover, .role-card.selected {
-    border-color: #f5c518;
-    background: #2a2a1a;
-  }
-  .role-card .icon { font-size: 36px; margin-bottom: 8px; }
-  .role-card .label { font-size: 14px; font-weight: 700; }
-  .role-card .sublabel { font-size: 11px; color: #888; margin-top: 4px; }
-
-  /* BUTTONS */
-  .btn {
-    width: 100%;
-    padding: 14px;
-    border: none;
-    border-radius: 14px;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s;
-    margin-bottom: 8px;
-  }
-  .btn-primary {
-    background: linear-gradient(135deg, #f5c518, #ff6b35);
-    color: #000;
-  }
-  .btn-primary:active { transform: scale(0.98); }
-  .btn-secondary {
-    background: #2a2a4a;
-    color: #fff;
-  }
-  .btn-danger {
-    background: #3a1a1a;
-    color: #f44336;
-    border: 1px solid #f44336;
-  }
-  .btn-green {
-    background: #1a3a1a;
-    color: #4caf50;
-    border: 1px solid #4caf50;
-  }
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  /* INPUT */
-  .input-group { margin-bottom: 12px; }
-  .input-label { font-size: 12px; color: #888; margin-bottom: 6px; display: block; }
-  .input {
-    width: 100%;
-    padding: 12px 14px;
-    background: #2a2a4a;
-    border: 1px solid #3a3a5a;
-    border-radius: 12px;
-    color: #fff;
-    font-size: 15px;
-    outline: none;
-    transition: border 0.3s;
-  }
-  .input:focus { border-color: #f5c518; }
-  .input::placeholder { color: #555; }
-
-  /* OTP INPUT */
-  .otp-container {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin: 16px 0;
-  }
-  .otp-input {
-    width: 44px;
-    height: 52px;
-    text-align: center;
-    font-size: 22px;
-    font-weight: 700;
-    background: #2a2a4a;
-    border: 2px solid #3a3a5a;
-    border-radius: 12px;
-    color: #f5c518;
-    outline: none;
-  }
-  .otp-input:focus { border-color: #f5c518; }
-
-  /* MAP AREA */
-  .map-area {
-    width: 100%;
-    height: 200px;
-    background: #1a1a2e;
-    border-radius: 14px;
-    border: 1px solid #2a2a4a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 8px;
-    color: #555;
-    font-size: 13px;
-    margin-bottom: 12px;
-  }
-  .map-area .map-icon { font-size: 32px; }
-
-  /* INFO ROW */
-  .info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #2a2a4a;
-  }
-  .info-row:last-child { border-bottom: none; }
-  .info-label { color: #888; font-size: 13px; }
-  .info-value { font-weight: 600; font-size: 14px; }
-
-  /* TRIPS LIST */
-  .trip-item {
-    background: #1a1a2e;
-    border: 1px solid #2a2a4a;
-    border-radius: 14px;
-    padding: 14px;
-    margin-bottom: 10px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .trip-icon { font-size: 28px; }
-  .trip-info { flex: 1; }
-  .trip-route { font-size: 14px; font-weight: 700; }
-  .trip-meta { font-size: 12px; color: #888; margin-top: 3px; }
-  .trip-price { font-size: 16px; font-weight: 800; color: #f5c518; }
-
-  /* DRIVER CARD */
-  .driver-card {
-    background: linear-gradient(135deg, #1a2a1a, #1a1a2e);
-    border: 1px solid #4caf50;
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 12px;
-  }
-  .driver-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-  .driver-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #f5c518, #ff6b35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-  }
-  .driver-name { font-size: 16px; font-weight: 700; }
-  .driver-car { font-size: 12px; color: #888; margin-top: 2px; }
-  .driver-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
-    text-align: center;
-  }
-  .stat-box {
-    background: #0f0f1a;
-    border-radius: 10px;
-    padding: 8px;
-  }
-  .stat-val { font-size: 16px; font-weight: 800; color: #f5c518; }
-  .stat-lbl { font-size: 10px; color: #888; }
-
-  /* STEPS */
-  .steps {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 20px;
-    position: relative;
-  }
-  .steps::before {
-    content: '';
-    position: absolute;
-    top: 16px;
-    left: 16px;
-    right: 16px;
-    height: 2px;
-    background: #2a2a4a;
-    z-index: 0;
-  }
-  .step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    z-index: 1;
-  }
-  .step-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #2a2a4a;
-    border: 2px solid #3a3a5a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    font-weight: 700;
-  }
-  .step.done .step-circle { background: #4caf50; border-color: #4caf50; }
-  .step.active .step-circle {
-    background: #f5c518;
-    border-color: #f5c518;
-    color: #000;
-  }
-  .step-label { font-size: 10px; color: #888; }
-  .step.active .step-label { color: #f5c518; }
-  .step.done .step-label { color: #4caf50; }
-
-  /* TOAST */
-  .toast {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #1a3a1a;
-    color: #4caf50;
-    border: 1px solid #4caf50;
-    padding: 10px 20px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-    z-index: 999;
-    opacity: 0;
-    transition: opacity 0.3s;
-    white-space: nowrap;
-  }
-  .toast.show { opacity: 1; }
-
-  /* SOS BUTTON */
-  .sos-btn {
-    position: fixed;
-    bottom: 80px;
-    right: 16px;
-    width: 56px;
-    height: 56px;
-    background: #f44336;
-    border-radius: 50%;
-    border: none;
-    font-size: 11px;
-    font-weight: 900;
-    color: #fff;
-    cursor: pointer;
-    box-shadow: 0 4px 20px rgba(244,67,54,0.5);
-    z-index: 200;
-    animation: pulse 2s infinite;
-  }
-  @keyframes pulse {
-    0%, 100% { box-shadow: 0 4px 20px rgba(244,67,54,0.5); }
-    50% { box-shadow: 0 4px 30px rgba(244,67,54,0.9); }
-  }
-
-  /* BOTTOM NAV */
-  .bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: #1a1a2e;
-    border-top: 1px solid #2a2a4a;
-    display: flex;
-    padding: 8px 0 12px;
-    z-index: 100;
-  }
-  .nav-item {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    cursor: pointer;
-    padding: 4px;
-  }
-  .nav-icon { font-size: 22px; }
-  .nav-label { font-size: 10px; color: #888; }
-  .nav-item.active .nav-label { color: #f5c518; }
-
-  .pb { padding-bottom: 80px; }
-  .text-center { text-align: center; }
-  .mt { margin-top: 12px; }
-  .mb { margin-bottom: 12px; }
-  .text-gold { color: #f5c518; }
-  .text-green { color: #4caf50; }
-  .text-gray { color: #888; }
-  .text-sm { font-size: 12px; }
-  .bold { font-weight: 700; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f1a;color:#fff;min-height:100vh}
+.header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px 16px 16px;text-align:center;border-bottom:1px solid #2a2a4a;position:sticky;top:0;z-index:100}
+.header h1{font-size:24px;font-weight:800;background:linear-gradient(90deg,#f5c518,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header p{font-size:12px;color:#888;margin-top:4px}
+.page{padding:16px;padding-bottom:80px}
+.card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:16px;margin-bottom:12px}
+.card-title{font-size:12px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.role-card{background:#1a1a2e;border:2px solid #2a2a4a;border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .3s}
+.role-card.selected{border-color:#f5c518;background:#2a2a1a}
+.role-card .icon{font-size:36px;margin-bottom:8px}
+.role-card .label{font-size:14px;font-weight:700}
+.role-card .sublabel{font-size:11px;color:#888;margin-top:4px}
+.btn{width:100%;padding:14px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;transition:all .3s;margin-bottom:8px}
+.btn-primary{background:linear-gradient(135deg,#f5c518,#ff6b35);color:#000}
+.btn-primary:active{transform:scale(.98)}
+.btn-secondary{background:#2a2a4a;color:#fff}
+.btn-danger{background:#3a1a1a;color:#f44336;border:1px solid #f44336}
+.btn-green{background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.input-group{margin-bottom:12px}
+.input-label{font-size:12px;color:#888;margin-bottom:6px;display:block}
+.input{width:100%;padding:12px 14px;background:#2a2a4a;border:1px solid #3a3a5a;border-radius:12px;color:#fff;font-size:15px;outline:none}
+.input:focus{border-color:#f5c518}
+.input::placeholder{color:#555}
+.otp-box{display:flex;gap:8px;justify-content:center;margin:16px 0}
+.otp-digit{width:44px;height:52px;text-align:center;font-size:22px;font-weight:700;background:#2a2a4a;border:2px solid #3a3a5a;border-radius:12px;color:#f5c518;outline:none}
+.otp-digit:focus{border-color:#f5c518}
+.steps{display:flex;justify-content:space-between;margin-bottom:20px;position:relative}
+.steps::before{content:'';position:absolute;top:16px;left:16px;right:16px;height:2px;background:#2a2a4a;z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;gap:6px;z-index:1}
+.step-circle{width:32px;height:32px;border-radius:50%;background:#2a2a4a;border:2px solid #3a3a5a;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.step.done .step-circle{background:#4caf50;border-color:#4caf50}
+.step.active .step-circle{background:#f5c518;border-color:#f5c518;color:#000}
+.step-label{font-size:10px;color:#888}
+.step.active .step-label{color:#f5c518}
+.step.done .step-label{color:#4caf50}
+.map-area{width:100%;height:160px;background:#0f0f1a;border-radius:14px;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#555;font-size:13px;margin-bottom:12px}
+.tabs{display:flex;background:#1a1a2e;padding:8px 12px;gap:8px;border-bottom:1px solid #2a2a4a}
+.tab{flex:1;padding:10px;border:none;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;background:#2a2a4a;color:#888}
+.tab.active{background:linear-gradient(135deg,#f5c518,#ff6b35);color:#000}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2a2a4a}
+.info-row:last-child{border-bottom:none}
+.info-label{color:#888;font-size:13px}
+.info-value{font-weight:600;font-size:14px}
+.driver-card{background:linear-gradient(135deg,#1a2a1a,#1a1a2e);border:1px solid #4caf50;border-radius:16px;padding:16px;margin-bottom:12px}
+.driver-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f5c518,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:20px}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}
+.stat-box{background:#0f0f1a;border-radius:10px;padding:8px}
+.stat-val{font-size:16px;font-weight:800;color:#f5c518}
+.stat-lbl{font-size:10px;color:#888}
+.badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
+.badge-yellow{background:#3a3a1a;color:#f5c518;border:1px solid #f5c518}
+.sos-btn{position:fixed;bottom:80px;right:16px;width:56px;height:56px;background:#f44336;border-radius:50%;border:none;font-size:11px;font-weight:900;color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(244,67,54,.5);z-index:200;animation:pulse 2s infinite;display:none}
+@keyframes pulse{0%,100%{box-shadow:0 4px 20px rgba(244,67,54,.5)}50%{box-shadow:0 4px 30px rgba(244,67,54,.9)}}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a3a1a;color:#4caf50;border:1px solid #4caf50;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1}
+.toast.error{background:#3a1a1a;color:#f44336;border-color:#f44336}
+.text-gold{color:#f5c518}
+.text-green{color:#4caf50}
+.text-gray{color:#888}
+.text-sm{font-size:12px}
+.bold{font-weight:700}
+.text-center{text-align:center}
+.mt{margin-top:12px}
+.mb{margin-bottom:12px}
+.hidden{display:none}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="header">
   <h1>🚕 AndTaxi</h1>
   <p>Andijon ↔ Toshkent</p>
 </div>
 
-<!-- TABS (haydovchi uchun) -->
-<div class="tabs" id="driverTabs" style="display:none">
-  <button class="tab active" onclick="showDriverPage('queue')">🟢 Navbat</button>
-  <button class="tab" onclick="showDriverPage('trips')">🚕 Triplar</button>
-  <button class="tab" onclick="showDriverPage('profile')">👤 Profil</button>
+<!-- TABS -->
+<div class="tabs hidden" id="appTabs">
+  <button class="tab active" onclick="showTab('home',this)">🏠 Bosh</button>
+  <button class="tab" onclick="showTab('trips',this)">🚕 Triplar</button>
+  <button class="tab" onclick="showTab('profile',this)">👤 Profil</button>
 </div>
 
-<!-- TABS (yo'lovchi uchun) -->
-<div class="tabs" id="passengerTabs" style="display:none">
-  <button class="tab active" onclick="showPassengerPage('search')">🔍 Qidiruv</button>
-  <button class="tab" onclick="showPassengerPage('trips')">🚕 Triplar</button>
-  <button class="tab" onclick="showPassengerPage('profile')">👤 Profil</button>
-</div>
+<!-- REG FLOW -->
+<div id="regFlow" class="page">
 
-<!-- ============ REGISTRATION FLOW ============ -->
-<div id="regFlow" class="page active pb">
-
-  <!-- STEP 0: ROL TANLASH -->
-  <div id="step0">
-    <div style="text-align:center; padding: 24px 0 16px;">
-      <div style="font-size:48px">🚕</div>
-      <h2 style="font-size:20px; margin: 8px 0 4px;">Xush kelibsiz!</h2>
+  <!-- STEP 0: ROL -->
+  <div id="s0">
+    <div class="text-center" style="padding:24px 0 16px">
+      <div style="font-size:56px">🚕</div>
+      <h2 style="font-size:20px;margin:8px 0 4px">Xush kelibsiz!</h2>
       <p class="text-gray text-sm">Andijon ↔ Toshkent yo'nalishi</p>
     </div>
-
     <div class="role-grid">
-      <div class="role-card" id="driverCard" onclick="selectRole('driver')">
+      <div class="role-card" id="dCard" onclick="pickRole('driver')">
         <div class="icon">🚗</div>
         <div class="label">Haydovchi</div>
         <div class="sublabel">Yo'lovchi toping</div>
       </div>
-      <div class="role-card" id="passengerCard" onclick="selectRole('passenger')">
+      <div class="role-card" id="pCard" onclick="pickRole('passenger')">
         <div class="icon">👤</div>
         <div class="label">Yo'lovchi</div>
         <div class="sublabel">Taksi chaqiring</div>
       </div>
     </div>
-
-    <button class="btn btn-primary" id="roleNextBtn" onclick="goStep(1)" disabled>
-      Davom etish →
-    </button>
+    <button class="btn btn-primary" id="roleBtn" onclick="go(1)" disabled>Davom etish →</button>
   </div>
 
   <!-- STEP 1: TELEFON -->
-  <div id="step1" style="display:none">
+  <div id="s1" class="hidden">
     <div class="steps">
-      <div class="step active">
-        <div class="step-circle">1</div>
-        <div class="step-label">Raqam</div>
-      </div>
-      <div class="step">
-        <div class="step-circle">2</div>
-        <div class="step-label">Kod</div>
-      </div>
-      <div class="step">
-        <div class="step-circle">3</div>
-        <div class="step-label">Joylashuv</div>
-      </div>
-      <div class="step">
-        <div class="step-circle">4</div>
-        <div class="step-label">Tayyor</div>
-      </div>
+      <div class="step active"><div class="step-circle">1</div><div class="step-label">Raqam</div></div>
+      <div class="step"><div class="step-circle">2</div><div class="step-label">Kod</div></div>
+      <div class="step"><div class="step-circle">3</div><div class="step-label">Joylashuv</div></div>
+      <div class="step"><div class="step-circle">4</div><div class="step-label">Tayyor</div></div>
     </div>
-
     <div class="card">
       <div class="card-title">📱 Telefon raqam</div>
       <div class="input-group">
-        <label class="input-label">O'zbekiston raqami</label>
-        <input class="input" id="phoneInput" type="tel"
-          placeholder="+998 90 123 45 67"
-          maxlength="13"
-          oninput="formatPhone(this)">
+        <label class="input-label">O'zbekiston raqami (+998...)</label>
+        <input class="input" id="phoneInp" type="tel" placeholder="+998 90 123 45 67" maxlength="13" oninput="fmtPhone(this)">
       </div>
-      <p class="text-gray text-sm">Raqamingizga 6 raqamli kod yuboriladi</p>
+      <p class="text-gray text-sm">Telegram-ga 6 raqamli kod keladi</p>
     </div>
-
-    <button class="btn btn-primary" onclick="sendOTP()">
-      📨 Kod yuborish
-    </button>
-    <button class="btn btn-secondary" onclick="goStep(0)">← Orqaga</button>
+    <button class="btn btn-primary" id="sendOtpBtn" onclick="sendOtp()">📨 Kod yuborish</button>
+    <button class="btn btn-secondary" onclick="go(0)">← Orqaga</button>
   </div>
 
   <!-- STEP 2: OTP -->
-  <div id="step2" style="display:none">
+  <div id="s2" class="hidden">
     <div class="steps">
-      <div class="step done">
-        <div class="step-circle">✓</div>
-        <div class="step-label">Raqam</div>
-      </div>
-      <div class="step active">
-        <div class="step-circle">2</div>
-        <div class="step-label">Kod</div>
-      </div>
-      <div class="step">
-        <div class="step-circle">3</div>
-        <div class="step-label">Joylashuv</div>
-      </div>
-      <div class="step">
-        <div class="step-circle">4</div>
-        <div class="step-label">Tayyor</div>
-      </div>
+      <div class="step done"><div class="step-circle">✓</div><div class="step-label">Raqam</div></div>
+      <div class="step active"><div class="step-circle">2</div><div class="step-label">Kod</div></div>
+      <div class="step"><div class="step-circle">3</div><div class="step-label">Joylashuv</div></div>
+      <div class="step"><div class="step-circle">4</div><div class="step-label">Tayyor</div></div>
     </div>
-
     <div class="card text-center">
       <div class="card-title">🔐 Tasdiqlash kodi</div>
       <p class="text-gray text-sm mb">
-        <span id="otpPhoneDisplay"></span> raqamiga<br>Telegram orqali kod yuborildi
+        <b id="otpPhone"></b> uchun<br>
+        ✉️ <b>Telegram xabarlarga</b> 6 raqamli kod yuborildi
       </p>
-      <div class="otp-container">
-        <input class="otp-input" maxlength="1" id="o1" oninput="otpNext(this,'o2')" type="number">
-        <input class="otp-input" maxlength="1" id="o2" oninput="otpNext(this,'o3')" type="number">
-        <input class="otp-input" maxlength="1" id="o3" oninput="otpNext(this,'o4')" type="number">
-        <input class="otp-input" maxlength="1" id="o4" oninput="otpNext(this,'o5')" type="number">
-        <input class="otp-input" maxlength="1" id="o5" oninput="otpNext(this,'o6')" type="number">
-        <input class="otp-input" maxlength="1" id="o6" oninput="otpCheck()" type="number">
+      <div class="otp-box">
+        <input class="otp-digit" id="d1" maxlength="1" inputmode="numeric" oninput="nxt(this,'d2')">
+        <input class="otp-digit" id="d2" maxlength="1" inputmode="numeric" oninput="nxt(this,'d3')">
+        <input class="otp-digit" id="d3" maxlength="1" inputmode="numeric" oninput="nxt(this,'d4')">
+        <input class="otp-digit" id="d4" maxlength="1" inputmode="numeric" oninput="nxt(this,'d5')">
+        <input class="otp-digit" id="d5" maxlength="1" inputmode="numeric" oninput="nxt(this,'d6')">
+        <input class="otp-digit" id="d6" maxlength="1" inputmode="numeric" oninput="autoVerify()">
       </div>
-      <p class="text-gray text-sm" id="otpTimer">⏰ 10:00</p>
+      <p class="text-gray text-sm" id="timer">⏰ 10:00</p>
     </div>
-
-    <button class="btn btn-primary" onclick="verifyOTP()">✅ Tasdiqlash</button>
-    <button class="btn btn-secondary" onclick="goStep(1)">← Orqaga</button>
+    <button class="btn btn-primary" onclick="verifyOtp()">✅ Tasdiqlash</button>
+    <button class="btn btn-secondary" onclick="resendOtp()">🔄 Qayta yuborish</button>
   </div>
 
   <!-- STEP 3: LOKATSIYA -->
-  <div id="step3" style="display:none">
+  <div id="s3" class="hidden">
     <div class="steps">
       <div class="step done"><div class="step-circle">✓</div><div class="step-label">Raqam</div></div>
       <div class="step done"><div class="step-circle">✓</div><div class="step-label">Kod</div></div>
       <div class="step active"><div class="step-circle">3</div><div class="step-label">Joylashuv</div></div>
       <div class="step"><div class="step-circle">4</div><div class="step-label">Tayyor</div></div>
     </div>
-
     <div class="card">
       <div class="card-title">📍 Joylashuv</div>
-      <div class="map-area" id="mapArea">
-        <div class="map-icon">📍</div>
-        <span>Joylashuvingiz bu yerda ko'rinadi</span>
+      <div class="map-area" id="mapBox">
+        <span style="font-size:32px">📍</span>
+        <span>Joylashuvingizni aniqlang</span>
       </div>
-      <button class="btn btn-primary" onclick="getLocation()">
-        📍 Joylashuvni aniqlash
-      </button>
+      <button class="btn btn-primary" onclick="getLoc()">📍 Joylashuvni aniqlash</button>
     </div>
 
-    <div id="driverExtra" style="display:none">
+    <!-- Haydovchi uchun -->
+    <div id="driverFields" class="hidden">
       <div class="card">
-        <div class="card-title">🚗 Mashina ma'lumotlari</div>
+        <div class="card-title">🚗 Mashina</div>
         <div class="input-group">
           <label class="input-label">Mashina turi</label>
-          <input class="input" id="carModel" placeholder="Cobalt, Malibu, Spark...">
+          <input class="input" id="carMdl" placeholder="Cobalt, Malibu, Nexia...">
         </div>
         <div class="input-group">
           <label class="input-label">Davlat raqami</label>
-          <input class="input" id="carNumber" placeholder="01A 123 BC">
+          <input class="input" id="carNum" placeholder="01A 123 BC">
         </div>
         <div class="input-group">
           <label class="input-label">O'rindiqlar soni</label>
-          <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:4px">
-            <button class="btn btn-secondary" id="seat1" onclick="selectSeat(1)">1</button>
-            <button class="btn btn-secondary" id="seat2" onclick="selectSeat(2)">2</button>
-            <button class="btn btn-secondary" id="seat3" onclick="selectSeat(3)">3</button>
-            <button class="btn btn-secondary" id="seat4" onclick="selectSeat(4)">4</button>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px">
+            <button class="btn btn-secondary" id="s1b" onclick="setSeat(1)" style="margin:0">1</button>
+            <button class="btn btn-secondary" id="s2b" onclick="setSeat(2)" style="margin:0">2</button>
+            <button class="btn btn-secondary" id="s3b" onclick="setSeat(3)" style="margin:0">3</button>
+            <button class="btn btn-secondary" id="s4b" onclick="setSeat(4)" style="margin:0">4</button>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="passengerExtra" style="display:none">
+    <!-- Yo'lovchi uchun -->
+    <div id="passFields" class="hidden">
       <div class="card">
         <div class="card-title">🪑 O'rindiq tanlang</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
-          <div class="role-card" onclick="selectSeatPref('front')" id="frontSeat">
+        <div class="role-grid">
+          <div class="role-card" id="frontCard" onclick="setSeatPref('front')">
             <div class="icon">⬆️</div>
             <div class="label">Old o'rindiq</div>
             <div class="sublabel">Biroz qimmat</div>
           </div>
-          <div class="role-card" onclick="selectSeatPref('back')" id="backSeat">
+          <div class="role-card" id="backCard" onclick="setSeatPref('back')">
             <div class="icon">⬇️</div>
             <div class="label">Orqa o'rindiq</div>
             <div class="sublabel">Arzonroq</div>
@@ -599,532 +225,393 @@
       </div>
     </div>
 
-    <button class="btn btn-primary" id="step3Next" onclick="goStep(4)" style="margin-top:8px">
-      Davom etish →
-    </button>
+    <button class="btn btn-primary" onclick="go(4)" style="margin-top:8px">Davom etish →</button>
   </div>
 
   <!-- STEP 4: TAYYOR -->
-  <div id="step4" style="display:none">
-    <div class="text-center" style="padding: 30px 0">
-      <div style="font-size:64px; margin-bottom:16px">🎉</div>
-      <h2 style="font-size:22px; margin-bottom:8px">Ro'yxatdan o'tdingiz!</h2>
-      <p class="text-gray text-sm">Hamma narsa tayyor</p>
+  <div id="s4" class="hidden">
+    <div class="text-center" style="padding:30px 0">
+      <div style="font-size:64px;margin-bottom:16px">🎉</div>
+      <h2 style="font-size:22px;margin-bottom:8px">Tayyor!</h2>
+      <p class="text-gray text-sm">Ro'yxatdan o'tdingiz</p>
     </div>
-
     <div class="card">
-      <div class="info-row">
-        <span class="info-label">📱 Raqam</span>
-        <span class="info-value text-gold" id="summaryPhone">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">🏷️ Rol</span>
-        <span class="info-value" id="summaryRole">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">📍 Joylashuv</span>
-        <span class="info-value text-green">✅ Saqlandi</span>
-      </div>
+      <div class="info-row"><span class="info-label">📱 Raqam</span><span class="info-value text-gold" id="sumPhone">—</span></div>
+      <div class="info-row"><span class="info-label">🏷️ Rol</span><span class="info-value" id="sumRole">—</span></div>
+      <div class="info-row"><span class="info-label">📍 Joylashuv</span><span class="info-value text-green">✅ Saqlandi</span></div>
     </div>
-
-    <button class="btn btn-primary" onclick="startApp()">
-      🚀 Boshlash
-    </button>
+    <button class="btn btn-primary" onclick="startApp()">🚀 Boshlash!</button>
   </div>
 </div>
 
-<!-- ============ DRIVER PAGES ============ -->
-<div id="driverApp" style="display:none">
+<!-- MAIN APP -->
+<div id="mainApp" class="hidden">
 
-  <!-- QUEUE PAGE -->
-  <div id="driverQueue" class="page active pb">
-    <div class="card">
-      <div class="card-title">Holat</div>
-      <div style="display:flex; justify-content:space-between; align-items:center">
-        <span id="queueStatus" class="badge badge-red">🔴 Navbatda emas</span>
-        <span class="text-gray text-sm" id="waitTime">—</span>
-      </div>
-    </div>
-
-    <button class="btn btn-green" id="joinBtn" onclick="toggleQueue()">
-      🟢 Navbatga kirish
-    </button>
-
-    <div class="card" id="activeGroupCard" style="display:none">
-      <div class="card-title">👥 Joriy guruh</div>
-      <div id="groupMembers"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">🗺️ Marshrut</div>
-      <div class="map-area">
-        <div class="map-icon">🗺️</div>
-        <span>Marshrut bu yerda ko'rinadi</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- DRIVER TRIPS -->
-  <div id="driverTrips" class="page pb">
-    <div class="trip-item">
-      <div class="trip-icon">✅</div>
-      <div class="trip-info">
-        <div class="trip-route">Andijon → Toshkent</div>
-        <div class="trip-meta">Bugun 08:30 · 3 yo'lovchi</div>
-      </div>
-      <div class="trip-price">— so'm</div>
-    </div>
-    <div class="text-center text-gray text-sm mt">
-      Yangi triplar bu yerda ko'rinadi
-    </div>
-  </div>
-
-  <!-- DRIVER PROFILE -->
-  <div id="driverProfile" class="page pb">
-    <div class="driver-card">
-      <div class="driver-header">
-        <div class="driver-avatar">🚗</div>
-        <div>
-          <div class="driver-name" id="dProfileName">—</div>
-          <div class="driver-car" id="dProfileCar">—</div>
-        </div>
-        <span class="badge badge-green">✅ Tasdiqlangan</span>
-      </div>
-      <div class="driver-stats">
-        <div class="stat-box">
-          <div class="stat-val">0</div>
-          <div class="stat-lbl">Triplar</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-val">5.0⭐</div>
-          <div class="stat-lbl">Reyting</div>
-        </div>
-        <div class="stat-box">
-          <div class="stat-val">0</div>
-          <div class="stat-lbl">Yo'lovchi</div>
+  <!-- HOME TAB -->
+  <div id="tabHome" class="page">
+    <!-- HAYDOVCHI -->
+    <div id="driverHome" class="hidden">
+      <div class="card">
+        <div class="card-title">Holat</div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span id="qStatus" class="badge badge-yellow">⏸ Navbatda emas</span>
         </div>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="info-row">
-        <span class="info-label">📱 Telefon</span>
-        <span class="info-value" id="dProfilePhone">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">🚗 Mashina</span>
-        <span class="info-value" id="dProfileCarInfo">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">🪑 O'rindiq</span>
-        <span class="info-value" id="dProfileSeats">—</span>
+      <button class="btn btn-green" id="qBtn" onclick="toggleQ()">🟢 Navbatga kirish</button>
+      <div class="card">
+        <div class="card-title">🗺️ Marshrut xaritasi</div>
+        <div class="map-area"><span style="font-size:32px">🗺️</span><span>Yo'lovchilar topilganda ko'rinadi</span></div>
       </div>
     </div>
 
-    <button class="btn btn-danger" onclick="logout()">🚪 Chiqish</button>
-  </div>
-</div>
-
-<!-- ============ PASSENGER PAGES ============ -->
-<div id="passengerApp" style="display:none">
-
-  <!-- SEARCH PAGE -->
-  <div id="passSearch" class="page active pb">
-    <div class="card">
-      <div class="card-title">🔍 Taksi qidirish</div>
-      <div class="info-row">
-        <span class="info-label">🟢 Manba</span>
-        <span class="info-value text-gold">Andijon</span>
+    <!-- YO'LOVCHI -->
+    <div id="passHome" class="hidden">
+      <div class="card">
+        <div class="card-title">🔍 Taksi qidirish</div>
+        <div class="info-row"><span class="info-label">🟢 Qayerdan</span><span class="info-value text-gold">Andijon</span></div>
+        <div class="info-row"><span class="info-label">🔴 Qayerga</span><span class="info-value">Toshkent</span></div>
       </div>
-      <div class="info-row">
-        <span class="info-label">🔴 Manzil</span>
-        <span class="info-value">Toshkent</span>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" id="searchBtn" onclick="searchTaxi()">
-      🔍 Taksi qidirish
-    </button>
-
-    <div id="searchResult" style="display:none">
-      <div class="driver-card">
-        <div class="driver-header">
-          <div class="driver-avatar">🚗</div>
-          <div>
-            <div class="driver-name">Haydovchi topildi!</div>
-            <div class="driver-car">Cobalt · 01A 123 BC</div>
+      <button class="btn btn-primary" id="srchBtn" onclick="searchTaxi()">🔍 Haydovchi qidirish</button>
+      <div id="foundDriver" class="hidden">
+        <div class="driver-card">
+          <div class="driver-header">
+            <div class="avatar">🚗</div>
+            <div>
+              <div class="bold">Haydovchi topildi!</div>
+              <div class="text-gray text-sm" id="driverInfo">—</div>
+            </div>
+            <span class="badge badge-green">5⭐</span>
           </div>
-          <span class="badge badge-green">5.0⭐</span>
-        </div>
-        <div class="driver-stats">
-          <div class="stat-box">
-            <div class="stat-val">3</div>
-            <div class="stat-lbl">O'rindiq</div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="stat-val">3</div><div class="stat-lbl">O'rindiq</div></div>
+            <div class="stat-box"><div class="stat-val">~2km</div><div class="stat-lbl">Masofa</div></div>
+            <div class="stat-box"><div class="stat-val">~5min</div><div class="stat-lbl">Kutish</div></div>
           </div>
-          <div class="stat-box">
-            <div class="stat-val">~2km</div>
-            <div class="stat-lbl">Uzoqlik</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-val">~5min</div>
-            <div class="stat-lbl">Kutish</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+            <button class="btn btn-green" onclick="acceptOffer()" style="margin:0">✅ Qabul</button>
+            <button class="btn btn-danger" onclick="rejectOffer()" style="margin:0">❌ Rad</button>
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px">
-          <button class="btn btn-primary" onclick="acceptDriver()">✅ Qabul</button>
-          <button class="btn btn-danger" onclick="rejectDriver()">❌ Rad</button>
-        </div>
       </div>
     </div>
   </div>
 
-  <!-- PASSENGER TRIPS -->
-  <div id="passTrips" class="page pb">
-    <div class="text-center text-gray text-sm mt">
-      Yangi triplar bu yerda ko'rinadi
-    </div>
+  <!-- TRIPS TAB -->
+  <div id="tabTrips" class="page hidden">
+    <div class="text-center text-gray text-sm mt">Triplar tarixi bu yerda ko'rinadi</div>
   </div>
 
-  <!-- PASSENGER PROFILE -->
-  <div id="passProfile" class="page pb">
+  <!-- PROFILE TAB -->
+  <div id="tabProfile" class="page hidden">
     <div class="card">
-      <div class="info-row">
-        <span class="info-label">👤 Ism</span>
-        <span class="info-value" id="pProfileName">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">📱 Telefon</span>
-        <span class="info-value" id="pProfilePhone">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">🪑 O'rindiq</span>
-        <span class="info-value" id="pProfileSeat">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">⭐ Reyting</span>
-        <span class="info-value text-gold">5.0</span>
-      </div>
+      <div class="info-row"><span class="info-label">👤 Ism</span><span class="info-value" id="profName">—</span></div>
+      <div class="info-row"><span class="info-label">📱 Raqam</span><span class="info-value" id="profPhone">—</span></div>
+      <div class="info-row"><span class="info-label">🏷️ Rol</span><span class="info-value" id="profRole">—</span></div>
+      <div class="info-row"><span class="info-label">⭐ Reyting</span><span class="info-value text-gold">5.0</span></div>
     </div>
     <button class="btn btn-danger" onclick="logout()">🚪 Chiqish</button>
   </div>
 </div>
 
-<!-- SOS BUTTON -->
-<button class="sos-btn" id="sosBtn" style="display:none" onclick="sendSOS()">SOS</button>
-
-<!-- TOAST -->
+<button class="sos-btn" id="sosBtn" onclick="doSOS()">SOS</button>
 <div class="toast" id="toast"></div>
 
 <script>
 const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
-  tg.setHeaderColor('#0f0f1a');
+if(tg){tg.ready();tg.expand();tg.setHeaderColor('#0f0f1a');}
+
+// ======= CONFIG =======
+// Railway-dagi API server URL
+const API = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://YOUR_RAILWAY_URL.up.railway.app';  // Railway deploy qilgandan keyin o'zgartiriladi
+
+const USER_ID = tg?.initDataUnsafe?.user?.id || 0;
+const USER_NAME = tg?.initDataUnsafe?.user?.first_name || 'Foydalanuvchi';
+
+// ======= STATE =======
+let S = {role:null,phone:null,loc:null,seats:null,seatPref:null,car:null,inQ:false,timerI:null};
+
+// ======= ROLE =======
+function pickRole(r){
+  S.role=r;
+  document.getElementById('dCard').classList.toggle('selected',r==='driver');
+  document.getElementById('pCard').classList.toggle('selected',r==='passenger');
+  document.getElementById('roleBtn').disabled=false;
 }
 
-// STATE
-let state = {
-  role: null,
-  phone: null,
-  otp: null,
-  location: null,
-  carModel: null,
-  carNumber: null,
-  seats: null,
-  seatPref: null,
-  inQueue: false,
-  otpTimer: null
-};
-
-// =========== ROLE ===========
-function selectRole(role) {
-  state.role = role;
-  document.getElementById('driverCard').classList.toggle('selected', role === 'driver');
-  document.getElementById('passengerCard').classList.toggle('selected', role === 'passenger');
-  document.getElementById('roleNextBtn').disabled = false;
-}
-
-// =========== STEPS ===========
-function goStep(n) {
-  ['step0','step1','step2','step3','step4'].forEach((id,i) => {
-    document.getElementById(id).style.display = i === n ? 'block' : 'none';
+// ======= STEPS =======
+function go(n){
+  ['s0','s1','s2','s3','s4'].forEach((id,i)=>{
+    document.getElementById(id).classList.toggle('hidden',i!==n);
   });
-
-  if (n === 3) {
-    document.getElementById('driverExtra').style.display =
-      state.role === 'driver' ? 'block' : 'none';
-    document.getElementById('passengerExtra').style.display =
-      state.role === 'passenger' ? 'block' : 'none';
+  if(n===3){
+    document.getElementById('driverFields').classList.toggle('hidden',S.role!=='driver');
+    document.getElementById('passFields').classList.toggle('hidden',S.role!=='passenger');
   }
-
-  if (n === 4) {
-    document.getElementById('summaryPhone').textContent = state.phone || '—';
-    document.getElementById('summaryRole').textContent =
-      state.role === 'driver' ? '🚗 Haydovchi' : '👤 Yo\'lovchi';
+  if(n===4){
+    document.getElementById('sumPhone').textContent=S.phone||'—';
+    document.getElementById('sumRole').textContent=S.role==='driver'?'🚗 Haydovchi':'👤 Yo\'lovchi';
   }
 }
 
-// =========== PHONE ===========
-function formatPhone(input) {
-  let v = input.value.replace(/\D/g,'');
-  if (!v.startsWith('998')) v = '998' + v;
-  v = v.substring(0,12);
-  input.value = '+' + v;
+// ======= PHONE FORMAT =======
+function fmtPhone(el){
+  let v=el.value.replace(/\D/g,'');
+  if(!v.startsWith('998'))v='998'+v;
+  v=v.substring(0,12);
+  el.value='+'+v;
 }
 
-function sendOTP() {
-  const phone = document.getElementById('phoneInput').value;
-  if (phone.length < 13) {
-    showToast('❌ Telefon raqam noto\'g\'ri!'); return;
-  }
-  state.phone = phone;
-  document.getElementById('otpPhoneDisplay').textContent = phone;
+// ======= SEND OTP =======
+async function sendOtp(){
+  const phone=document.getElementById('phoneInp').value;
+  if(phone.replace(/\D/g,'').length<11){toast('❌ Raqam noto\'g\'ri!','err');return;}
+  S.phone=phone;
 
-  // Bot orqali OTP yuborish
-  if (tg) {
-    tg.sendData(JSON.stringify({action: 'send_otp', phone: phone}));
-  }
+  const btn=document.getElementById('sendOtpBtn');
+  btn.disabled=true; btn.textContent='⏳ Yuborilmoqda...';
 
-  startOTPTimer();
-  goStep(2);
-  showToast('📨 Telegram-ga kod yuborildi!');
-}
+  try{
+    // API ga so'rov - bot Telegram-ga OTP yuboradi
+    const res=await fetch(`${API}/api/send-otp`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:USER_ID,phone:phone})
+    });
+    const data=await res.json();
 
-// =========== OTP ===========
-function otpNext(el, nextId) {
-  if (el.value.length >= 1) {
-    document.getElementById(nextId)?.focus();
-  }
-}
-
-function otpCheck() {
-  const code = ['o1','o2','o3','o4','o5','o6']
-    .map(id => document.getElementById(id).value).join('');
-  if (code.length === 6) verifyOTP();
-}
-
-function verifyOTP() {
-  const entered = ['o1','o2','o3','o4','o5','o6']
-    .map(id => document.getElementById(id).value).join('');
-
-  if (entered.length !== 6) {
-    showToast('❌ 6 raqamli kod kiriting!'); return;
-  }
-
-  state.otp = entered;
-
-  if (tg) {
-    tg.sendData(JSON.stringify({action: 'verify_otp', code: entered}));
-  }
-
-  clearInterval(state.otpTimer);
-  showToast('✅ Tasdiqlandi!');
-  goStep(3);
-}
-
-function startOTPTimer() {
-  let secs = 600;
-  clearInterval(state.otpTimer);
-  state.otpTimer = setInterval(() => {
-    secs--;
-    const m = Math.floor(secs/60).toString().padStart(2,'0');
-    const s = (secs%60).toString().padStart(2,'0');
-    const el = document.getElementById('otpTimer');
-    if (el) el.textContent = `⏰ ${m}:${s}`;
-    if (secs <= 0) {
-      clearInterval(state.otpTimer);
-      if (el) el.textContent = '❌ Kod muddati tugadi!';
+    if(data.ok){
+      document.getElementById('otpPhone').textContent=phone;
+      startTimer();
+      go(2);
+      toast('📨 Telegram xabarlarga kod keldi!');
+    } else {
+      toast('❌ '+data.error,'err');
     }
-  }, 1000);
+  } catch(e){
+    toast('❌ Server bilan aloqa yo\'q','err');
+  }
+
+  btn.disabled=false; btn.textContent='📨 Kod yuborish';
 }
 
-// =========== LOCATION ===========
-function getLocation() {
-  const mapArea = document.getElementById('mapArea');
-  mapArea.innerHTML = '<div class="map-icon">⏳</div><span>Aniqlanmoqda...</span>';
+// ======= OTP INPUT =======
+function nxt(el,nextId){
+  if(el.value.length>=1) document.getElementById(nextId)?.focus();
+}
 
+function autoVerify(){
+  const code=['d1','d2','d3','d4','d5','d6'].map(i=>document.getElementById(i).value).join('');
+  if(code.length===6) verifyOtp();
+}
+
+// ======= VERIFY OTP =======
+async function verifyOtp(){
+  const code=['d1','d2','d3','d4','d5','d6'].map(i=>document.getElementById(i).value).join('');
+  if(code.length!==6){toast('❌ 6 ta raqam kiriting!','err');return;}
+
+  try{
+    const res=await fetch(`${API}/api/verify-otp`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id:USER_ID,code:code})
+    });
+    const data=await res.json();
+
+    if(data.ok){
+      clearInterval(S.timerI);
+      toast('✅ Tasdiqlandi!');
+      go(3);
+    } else {
+      toast('❌ '+data.error,'err');
+      ['d1','d2','d3','d4','d5','d6'].forEach(i=>{
+        const el=document.getElementById(i);
+        el.value='';
+        el.style.borderColor='#f44336';
+        setTimeout(()=>el.style.borderColor='',1000);
+      });
+      document.getElementById('d1').focus();
+    }
+  } catch(e){
+    toast('❌ Server bilan aloqa yo\'q','err');
+  }
+}
+
+async function resendOtp(){
+  ['d1','d2','d3','d4','d5','d6'].forEach(i=>document.getElementById(i).value='');
+  clearInterval(S.timerI);
+  await sendOtp();
+}
+
+// ======= TIMER =======
+function startTimer(){
+  let s=600;
+  clearInterval(S.timerI);
+  S.timerI=setInterval(()=>{
+    s--;
+    const m=Math.floor(s/60).toString().padStart(2,'0');
+    const sec=(s%60).toString().padStart(2,'0');
+    const el=document.getElementById('timer');
+    if(el)el.textContent=`⏰ ${m}:${sec}`;
+    if(s<=0){clearInterval(S.timerI);if(el)el.textContent='❌ Muddati tugadi! Qayta yuboring';}
+  },1000);
+}
+
+// ======= LOCATION =======
+function getLoc(){
+  const box=document.getElementById('mapBox');
+  box.innerHTML='<span style="font-size:32px">⏳</span><span>Aniqlanmoqda...</span>';
   navigator.geolocation.getCurrentPosition(
-    pos => {
-      state.location = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-      mapArea.innerHTML =
-        `<div class="map-icon">✅</div>
-         <span class="text-green bold">Joylashuv aniqlandi!</span>
-         <span class="text-gray text-sm">${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}</span>`;
-      showToast('✅ Joylashuv saqlandi!');
+    pos=>{
+      S.loc={lat:pos.coords.latitude,lng:pos.coords.longitude};
+      box.innerHTML=`<span style="font-size:32px">✅</span>
+        <span class="text-green bold">Joylashuv aniqlandi!</span>
+        <span class="text-gray text-sm">${S.loc.lat.toFixed(4)}, ${S.loc.lng.toFixed(4)}</span>`;
+      toast('✅ Joylashuv saqlandi!');
     },
-    err => {
-      mapArea.innerHTML = '<div class="map-icon">❌</div><span>Ruxsat berilmadi</span>';
-      showToast('❌ Joylashuvga ruxsat bering!');
-    },
-    {enableHighAccuracy: true}
+    ()=>{box.innerHTML='<span style="font-size:32px">❌</span><span>Ruxsat berilmadi</span>';toast('❌ Joylashuvga ruxsat bering!','err');}
   );
 }
 
-// =========== SEAT / CAR ===========
-function selectSeat(n) {
-  state.seats = n;
-  [1,2,3,4].forEach(i => {
-    const b = document.getElementById('seat'+i);
-    if (b) b.style.background = i === n ? '#f5c518' : '';
-    if (b) b.style.color = i === n ? '#000' : '';
+function setSeat(n){
+  S.seats=n;
+  [1,2,3,4].forEach(i=>{
+    const b=document.getElementById('s'+i+'b');
+    b.style.background=i===n?'#f5c518':'';
+    b.style.color=i===n?'#000':'';
   });
 }
 
-function selectSeatPref(pref) {
-  state.seatPref = pref;
-  ['front','back'].forEach(p => {
-    const el = document.getElementById(p+'Seat');
-    if (el) el.classList.toggle('selected', p === pref);
-  });
+function setSeatPref(p){
+  S.seatPref=p;
+  document.getElementById('frontCard').classList.toggle('selected',p==='front');
+  document.getElementById('backCard').classList.toggle('selected',p==='back');
 }
 
-// =========== START APP ===========
-function startApp() {
-  document.getElementById('regFlow').style.display = 'none';
-  document.getElementById('sosBtn').style.display = 'block';
+// ======= START APP =======
+async function startApp(){
+  // API ga ro'yxatdan o'tish
+  try{
+    await fetch(`${API}/api/register`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        user_id:USER_ID,
+        role:S.role,
+        phone:S.phone,
+        location:S.loc,
+        seats:S.seats,
+        seatPref:S.seatPref,
+        car:document.getElementById('carMdl')?.value,
+        carNum:document.getElementById('carNum')?.value
+      })
+    });
+  }catch(e){}
 
-  const data = {
-    action: 'register',
-    role: state.role,
-    phone: state.phone,
-    location: state.location,
-    carModel: state.carModel,
-    carNumber: state.carNumber,
-    seats: state.seats,
-    seatPref: state.seatPref
-  };
-  if (tg) tg.sendData(JSON.stringify(data));
+  // UI ko'rsatish
+  document.getElementById('regFlow').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  document.getElementById('appTabs').classList.remove('hidden');
+  document.getElementById('sosBtn').style.display='block';
 
-  if (state.role === 'driver') {
-    document.getElementById('driverTabs').style.display = 'flex';
-    document.getElementById('driverApp').style.display = 'block';
-    document.getElementById('dProfileName').textContent =
-      tg?.initDataUnsafe?.user?.first_name || 'Haydovchi';
-    document.getElementById('dProfilePhone').textContent = state.phone;
-    document.getElementById('dProfileCar').textContent =
-      (state.carModel || '') + ' · ' + (state.carNumber || '');
-    document.getElementById('dProfileCarInfo').textContent =
-      (state.carModel || '') + ' ' + (state.carNumber || '');
-    document.getElementById('dProfileSeats').textContent =
-      (state.seats || '—') + ' ta';
+  document.getElementById('profName').textContent=USER_NAME;
+  document.getElementById('profPhone').textContent=S.phone||'—';
+  document.getElementById('profRole').textContent=S.role==='driver'?'🚗 Haydovchi':'👤 Yo\'lovchi';
+
+  if(S.role==='driver'){
+    document.getElementById('driverHome').classList.remove('hidden');
   } else {
-    document.getElementById('passengerTabs').style.display = 'flex';
-    document.getElementById('passengerApp').style.display = 'block';
-    document.getElementById('pProfileName').textContent =
-      tg?.initDataUnsafe?.user?.first_name || 'Yo\'lovchi';
-    document.getElementById('pProfilePhone').textContent = state.phone;
-    document.getElementById('pProfileSeat').textContent =
-      state.seatPref === 'front' ? '⬆️ Old o\'rindiq' : '⬇️ Orqa o\'rindiq';
+    document.getElementById('passHome').classList.remove('hidden');
   }
 
-  showToast('🎉 Xush kelibsiz!');
+  toast('🎉 Xush kelibsiz, '+USER_NAME+'!');
 }
 
-// =========== DRIVER QUEUE ===========
-function showDriverPage(page) {
-  document.querySelectorAll('#driverApp .page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('#driverTabs .tab').forEach(t => t.classList.remove('active'));
-
-  const pages = {queue:'driverQueue', trips:'driverTrips', profile:'driverProfile'};
-  document.getElementById(pages[page])?.classList.add('active');
-  event.target.classList.add('active');
+// ======= TABS =======
+function showTab(name,el){
+  ['tabHome','tabTrips','tabProfile'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  document.getElementById('tab'+name.charAt(0).toUpperCase()+name.slice(1)).classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
 }
 
-function toggleQueue() {
-  state.inQueue = !state.inQueue;
-  const btn = document.getElementById('joinBtn');
-  const status = document.getElementById('queueStatus');
-
-  if (state.inQueue) {
-    btn.textContent = '🔴 Navbatdan chiqish';
-    btn.className = 'btn btn-danger';
-    status.textContent = '🟢 Navbatda';
-    status.className = 'badge badge-green';
-    if (tg) tg.sendData(JSON.stringify({action: 'join_queue'}));
-    showToast('✅ Navbatga kirdingiz!');
+// ======= DRIVER QUEUE =======
+function toggleQ(){
+  S.inQ=!S.inQ;
+  const btn=document.getElementById('qBtn');
+  const st=document.getElementById('qStatus');
+  if(S.inQ){
+    btn.textContent='🔴 Navbatdan chiqish';btn.className='btn btn-danger';
+    st.textContent='🟢 Navbatda';st.className='badge badge-green';
+    toast('✅ Navbatga kirdingiz!');
   } else {
-    btn.textContent = '🟢 Navbatga kirish';
-    btn.className = 'btn btn-green';
-    status.textContent = '🔴 Navbatda emas';
-    status.className = 'badge badge-red';
-    if (tg) tg.sendData(JSON.stringify({action: 'leave_queue'}));
-    showToast('🔴 Navbatdan chiqdingiz');
+    btn.textContent='🟢 Navbatga kirish';btn.className='btn btn-green';
+    st.textContent='⏸ Navbatda emas';st.className='badge badge-yellow';
+    toast('🔴 Navbatdan chiqdingiz');
   }
 }
 
-// =========== PASSENGER SEARCH ===========
-function showPassengerPage(page) {
-  document.querySelectorAll('#passengerApp .page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('#passengerTabs .tab').forEach(t => t.classList.remove('active'));
-
-  const pages = {search:'passSearch', trips:'passTrips', profile:'passProfile'};
-  document.getElementById(pages[page])?.classList.add('active');
-  event.target.classList.add('active');
+// ======= PASSENGER SEARCH =======
+function searchTaxi(){
+  const btn=document.getElementById('srchBtn');
+  btn.disabled=true;btn.textContent='⏳ Qidiryapmiz...';
+  setTimeout(()=>{
+    document.getElementById('foundDriver').classList.remove('hidden');
+    document.getElementById('driverInfo').textContent='Cobalt · 01A123BC';
+    btn.disabled=false;btn.textContent='🔍 Haydovchi qidirish';
+    toast('🚗 Haydovchi topildi!');
+  },2000);
 }
 
-function searchTaxi() {
-  const btn = document.getElementById('searchBtn');
-  btn.textContent = '⏳ Qidiryapmiz...';
-  btn.disabled = true;
-  if (tg) tg.sendData(JSON.stringify({action: 'search_taxi'}));
-
-  setTimeout(() => {
-    document.getElementById('searchResult').style.display = 'block';
-    btn.textContent = '🔍 Taksi qidirish';
-    btn.disabled = false;
-    showToast('🚗 Haydovchi topildi!');
-  }, 2000);
+function acceptOffer(){
+  document.getElementById('foundDriver').classList.add('hidden');
+  toast('✅ Haydovchi qabul qilindi! U kelmoqda...');
 }
 
-function acceptDriver() {
-  if (tg) tg.sendData(JSON.stringify({action: 'accept_driver'}));
-  document.getElementById('searchResult').style.display = 'none';
-  showToast('✅ Haydovchi qabul qilindi!');
+function rejectOffer(){
+  document.getElementById('foundDriver').classList.add('hidden');
+  toast('❌ Rad etildi');
 }
 
-function rejectDriver() {
-  if (tg) tg.sendData(JSON.stringify({action: 'reject_driver'}));
-  document.getElementById('searchResult').style.display = 'none';
-  showToast('❌ Rad etildi');
-}
-
-// =========== SOS ===========
-function sendSOS() {
-  navigator.geolocation.getCurrentPosition(pos => {
-    if (tg) tg.sendData(JSON.stringify({
-      action: 'sos',
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude
-    }));
-    showToast('🚨 SOS adminga yuborildi!');
+// ======= SOS =======
+async function doSOS(){
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    try{
+      await fetch(`${API}/api/sos`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          user_id:USER_ID,
+          name:USER_NAME,
+          lat:pos.coords.latitude,
+          lng:pos.coords.longitude
+        })
+      });
+    }catch(e){}
+    toast('🚨 SOS adminga yuborildi!');
   });
 }
 
-// =========== LOGOUT ===========
-function logout() {
-  state = {role:null, phone:null, otp:null, location:null,
-           carModel:null, carNumber:null, seats:null, seatPref:null,
-           inQueue:false, otpTimer:null};
-
-  document.getElementById('driverApp').style.display = 'none';
-  document.getElementById('passengerApp').style.display = 'none';
-  document.getElementById('driverTabs').style.display = 'none';
-  document.getElementById('passengerTabs').style.display = 'none';
-  document.getElementById('sosBtn').style.display = 'none';
-  document.getElementById('regFlow').style.display = 'block';
-
-  ['step1','step2','step3','step4'].forEach(id =>
-    document.getElementById(id).style.display = 'none');
-  document.getElementById('step0').style.display = 'block';
+// ======= LOGOUT =======
+function logout(){
+  S={role:null,phone:null,loc:null,seats:null,seatPref:null,car:null,inQ:false,timerI:null};
+  document.getElementById('mainApp').classList.add('hidden');
+  document.getElementById('appTabs').classList.add('hidden');
+  document.getElementById('sosBtn').style.display='none';
+  document.getElementById('regFlow').classList.remove('hidden');
+  document.getElementById('driverHome').classList.add('hidden');
+  document.getElementById('passHome').classList.add('hidden');
+  ['s1','s2','s3','s4'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  document.getElementById('s0').classList.remove('hidden');
 }
 
-// =========== TOAST ===========
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
+// ======= TOAST =======
+function toast(msg,type='ok'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast show'+(type==='err'?' error':'');
+  setTimeout(()=>t.classList.remove('show'),2500);
 }
 </script>
 </body>
