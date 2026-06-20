@@ -1,134 +1,124 @@
 """
-AndTaxi Bot - SMS Service (ESKIZ.UZ)
-O'zbekiston uchun eng mashhur SMS provider
+AndTaxi Bot - Verification Service
+SMS o'rniga Telegram OTP (BEPUL)
 """
 
+import random
 import logging
-import aiohttp
 from typing import Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-class SMSService:
-    """Eskiz.uz SMS xizmati"""
 
-    def __init__(self):
-        import os
-        self.email = os.getenv("ESKIZ_EMAIL", "")
-        self.password = os.getenv("ESKIZ_PASSWORD", "")
-        self.token = os.getenv("SMS_API_KEY", "")  # yoki manual token
-        self.base_url = "https://notify.eskiz.uz/api"
-        self.session = None
-
-    async def init(self):
-        self.session = aiohttp.ClientSession()
-        if not self.token and self.email and self.password:
-            await self.get_token()
-        logger.info("✅ SMS Service (Eskiz.uz) initialized")
-
-    async def close(self):
-        if self.session:
-            await self.session.close()
-
-    async def get_token(self) -> bool:
-        """Email/parol bilan token olish"""
-        try:
-            async with self.session.post(
-                f"{self.base_url}/auth/login",
-                data={"email": self.email, "password": self.password}
-            ) as resp:
-                data = await resp.json()
-                if data.get("data", {}).get("token"):
-                    self.token = data["data"]["token"]
-                    logger.info("✅ Eskiz token received")
-                    return True
-                logger.error(f"Token error: {data}")
-                return False
-        except Exception as e:
-            logger.error(f"Token fetch error: {e}")
-            return False
-
-    async def send_sms(self, phone: str, message: str) -> Tuple[bool, str]:
-        """SMS yuborish"""
-        try:
-            phone = self._normalize_phone(phone)
-            if not phone:
-                return False, "Noto'g'ri raqam"
-
-            headers = {"Authorization": f"Bearer {self.token}"}
-
-            async with self.session.post(
-                f"{self.base_url}/message/sms/send",
-                headers=headers,
-                data={
-                    "mobile_phone": phone,
-                    "message": message,
-                    "from": "4546",
-                    "callback_url": ""
-                },
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as resp:
-                data = await resp.json()
-                if data.get("status") == "waiting" or data.get("id"):
-                    logger.info(f"✅ SMS sent to {phone}")
-                    return True, str(data.get("id", "ok"))
-                else:
-                    logger.error(f"SMS error: {data}")
-                    return False, str(data.get("message", "Xato"))
-
-        except Exception as e:
-            logger.error(f"SMS send error: {e}")
-            return False, str(e)
-
-    async def send_verification_code(self, phone: str) -> Tuple[bool, Optional[str], Optional[str]]:
-        """Tasdiqlash kodi yuborish"""
-        import random
-        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-        message = f"AndTaxi tasdiqlash kodi: {code}\n10 daqiqa ichida kiriting."
-        success, result = await self.send_sms(phone, message)
-        if success:
-            return True, code, None
-        return False, None, result
-
-    async def send_welcome(self, phone: str, name: str = "") -> bool:
-        msg = f"Salom{f', {name}' if name else ''}! AndTaxi'ga xush kelibsiz 🚕"
-        ok, _ = await self.send_sms(phone, msg)
-        return ok
-
-    async def send_ban_notification(self, phone: str, reason: str,
-                                    ban_until: datetime, desc: str) -> bool:
-        msg = (f"AndTaxi: Hisobingiz bloklandi ⚠️\n"
-               f"Sababi: {desc}\n"
-               f"Muddati: {ban_until.strftime('%d.%m.%Y %H:%M')}")
-        ok, _ = await self.send_sms(phone, msg)
-        return ok
-
-    async def send_sos_alert(self, admin_phone: str, user_name: str,
-                             user_phone: str, location: str) -> bool:
-        msg = (f"🚨 SOS! {user_name} ({user_phone})\n"
-               f"Joylashuv: {location}")
-        ok, _ = await self.send_sms(admin_phone, msg)
-        return ok
-
-    async def send_cancellation_penalty_warning(self, phone: str, remaining: int) -> bool:
-        if remaining == 0:
-            msg = "AndTaxi: 24 soat ban! 3 marta bekor qildingiz."
-        else:
-            msg = f"AndTaxi: Yana {remaining} marta bekor qilsangiz ban bo'lasiz!"
-        ok, _ = await self.send_sms(phone, msg)
-        return ok
+class VerificationService:
+    """
+    Telegram OTP - SMS shart emas, 100% bepul!
+    Kod Telegram ichida yuboriladi.
+    """
 
     @staticmethod
-    def _normalize_phone(phone: str) -> Optional[str]:
-        digits = ''.join(filter(str.isdigit, phone))
-        if digits.startswith('998') and len(digits) == 12:
-            return digits
-        if len(digits) == 9:
-            return '998' + digits
-        if digits.startswith('8') and len(digits) == 11:
-            return '998' + digits[1:]
-        return None
+    def generate_code() -> str:
+        """6 raqamli tasdiqlash kodi"""
+        return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+    @staticmethod
+    async def send_code_via_telegram(bot, user_id: int) -> Tuple[bool, Optional[str]]:
+        """
+        Tasdiqlash kodini Telegram orqali yuborish (SMS o'rniga)
+        """
+        try:
+            code = VerificationService.generate_code()
+
+            await bot.send_message(
+                user_id,
+                f"🔐 *Tasdiqlash kodi:* `{code}`\n\n"
+                f"⏰ 10 daqiqa ichida kiriting.\n"
+                f"❌ Bu kodni hech kimga bermang!",
+                parse_mode="Markdown"
+            )
+
+            logger.info(f"✅ OTP sent via Telegram to user {user_id}")
+            return True, code
+
+        except Exception as e:
+            logger.error(f"Error sending OTP: {e}")
+            return False, None
+
+    @staticmethod
+    async def send_ban_notification_tg(bot, user_id: int,
+                                       reason: str, ban_until: datetime) -> bool:
+        """Ban xabari Telegram orqali"""
+        try:
+            await bot.send_message(
+                user_id,
+                f"🚫 *Hisobingiz bloklandi!*\n\n"
+                f"Sababi: {reason}\n"
+                f"Muddati: {ban_until.strftime('%d.%m.%Y %H:%M')} gacha\n\n"
+                f"Savol bo'lsa: @andtaxi_support",
+                parse_mode="Markdown"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error sending ban notification: {e}")
+            return False
+
+    @staticmethod
+    async def send_sos_alert_tg(bot, admin_ids: list,
+                                user_name: str, user_id: int,
+                                lat: float, lng: float) -> bool:
+        """SOS xabari admin-larga Telegram orqali"""
+        try:
+            location_url = f"https://maps.google.com/?q={lat},{lng}"
+            text = (
+                f"🚨 *SOS EMERGENCY!*\n\n"
+                f"👤 {user_name} (ID: {user_id})\n"
+                f"📍 [{lat:.4f}, {lng:.4f}]({location_url})\n"
+                f"⏰ {datetime.now().strftime('%H:%M:%S')}"
+            )
+            for admin_id in admin_ids:
+                try:
+                    await bot.send_message(admin_id, text, parse_mode="Markdown")
+                except Exception:
+                    pass
+            return True
+        except Exception as e:
+            logger.error(f"Error sending SOS: {e}")
+            return False
+
+    @staticmethod
+    async def send_cancellation_warning_tg(bot, user_id: int, remaining: int) -> bool:
+        """Bekor qilish ogohlantirishi"""
+        try:
+            if remaining == 0:
+                msg = "⛔ *24 soat ban!* 3 marta bekor qildingiz."
+            else:
+                msg = f"⚠️ Yana *{remaining}* marta bekor qilsangiz ban bo'lasiz!"
+            await bot.send_message(user_id, msg, parse_mode="Markdown")
+            return True
+        except Exception as e:
+            logger.error(f"Error sending warning: {e}")
+            return False
+
+    @staticmethod
+    async def send_trip_notification_tg(bot, user_id: int,
+                                        driver_name: str, vehicle: str) -> bool:
+        """Trip xabari"""
+        try:
+            await bot.send_message(
+                user_id,
+                f"🚕 *Haydovchi topildi!*\n\n"
+                f"👤 {driver_name}\n"
+                f"🚗 {vehicle}\n\n"
+                f"Haydovchi siz tomon yo'lda...",
+                parse_mode="Markdown"
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Error sending trip notification: {e}")
+            return False
 
 
-sms_service = SMSService()
+# Alias - eski kod bilan moslik uchun
+sms_service = VerificationService()
+SMSService = VerificationService
