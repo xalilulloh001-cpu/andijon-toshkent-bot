@@ -90,43 +90,33 @@ async def webapp_data(msg: types.Message):
 
         if action == "register":
             role = "🚗 Haydovchi" if data.get("role") == "driver" else "👤 Yo'lovchi"
-            await msg.answer(
+            phone = data.get("phone", "—")
+            loc = data.get("location", {})
+            addr = loc.get("address", "Noma'lum")
+            lat = loc.get("lat")
+            lng = loc.get("lng")
+            map_url = f"https://maps.google.com/?q={lat},{lng}" if lat else ""
+
+            text = (
                 f"✅ *Ro'yxatdan o'tdingiz!*\n\n"
                 f"Rol: {role}\n"
-                f"Telefon: {data.get('phone','—')}\n\n"
-                f"Xush kelibsiz! 🎉",
-                parse_mode="Markdown"
+                f"📱 Telefon: {phone}\n"
+                f"📍 Joylashuv: {addr}\n"
             )
+            if map_url:
+                text += f"[Xaritada ko'rish]({map_url})\n"
+            text += "\nXush kelibsiz! 🎉"
 
-        elif action == "location_selected":
-            pickup = data.get("pickup", {})
-            dest = data.get("destination", {})
-            pickup_addr = pickup.get("address", "Noma'lum")
-            dest_addr = dest.get("address", "Noma'lum")
-            pickup_lat = pickup.get("lat")
-            pickup_lng = pickup.get("lng")
-            dest_lat = dest.get("lat")
-            dest_lng = dest.get("lng")
+            await msg.answer(text, parse_mode="Markdown")
 
-            pickup_map = f"https://maps.google.com/?q={pickup_lat},{pickup_lng}"
-            dest_map = f"https://maps.google.com/?q={dest_lat},{dest_lng}"
-
-            await msg.answer(
-                f"📍 *Manzillar tanlandi!*\n\n"
-                f"🟢 *Olib ketish:*\n{pickup_addr}\n[Xaritada ko'rish]({pickup_map})\n\n"
-                f"🏁 *Borish joyi:*\n{dest_addr}\n[Xaritada ko'rish]({dest_map})\n\n"
-                f"🔍 Haydovchi qidiryapmiz...",
-                parse_mode="Markdown"
-            )
-
-            # Admin-larga ham xabar
+            # Admin-larga xabar
             for aid in ADMIN_IDS:
                 try:
                     await bot.send_message(aid,
-                        f"🚕 *Yangi buyurtma!*\n"
-                        f"👤 {msg.from_user.full_name} (ID: `{msg.from_user.id}`)\n\n"
-                        f"🟢 {pickup_addr}\n"
-                        f"🏁 {dest_addr}",
+                        f"🆕 *Yangi {role}*\n"
+                        f"👤 {msg.from_user.full_name} (ID: `{msg.from_user.id}`)\n"
+                        f"📱 {phone}\n"
+                        f"📍 {addr}" + (f"\n[Xarita]({map_url})" if map_url else ""),
                         parse_mode="Markdown")
                 except Exception:
                     pass
@@ -289,3 +279,4 @@ async def health():
 if __name__ == "__main__":
     logger.info(f"🚀 AndTaxi starting on port {PORT}")
     uvicorn.run(app, host="0.0.0.0", port=PORT)
+
