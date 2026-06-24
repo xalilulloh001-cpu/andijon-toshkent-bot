@@ -2,698 +2,610 @@
 <html lang="uz">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AndTaxi</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AndTaxi — Joylashuv</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f1a;color:#fff;min-height:100vh}
-.header{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px 16px 16px;text-align:center;border-bottom:1px solid #2a2a4a;position:sticky;top:0;z-index:100}
-.header h1{font-size:24px;font-weight:800;background:linear-gradient(90deg,#f5c518,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.header p{font-size:12px;color:#888;margin-top:4px}
-.page{padding:16px;padding-bottom:90px}
-.card{background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:16px;margin-bottom:12px}
-.card-title{font-size:11px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
-.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
-.role-card{background:#1a1a2e;border:2px solid #2a2a4a;border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .3s}
-.role-card.selected{border-color:#f5c518;background:#2a2a1a}
-.role-card .icon{font-size:36px;margin-bottom:8px}
-.role-card .label{font-size:14px;font-weight:700}
-.role-card .sublabel{font-size:11px;color:#888;margin-top:4px}
-.btn{width:100%;padding:14px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;transition:all .3s;margin-bottom:8px}
-.btn-primary{background:linear-gradient(135deg,#f5c518,#ff6b35);color:#000}
-.btn-primary:active{transform:scale(.98)}
-.btn-secondary{background:#2a2a4a;color:#fff}
-.btn-danger{background:#3a1a1a;color:#f44336;border:1px solid #f44336}
-.btn-green{background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
-.btn-outline{background:transparent;color:#f5c518;border:2px solid #f5c518}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.input-group{margin-bottom:12px}
-.input-label{font-size:12px;color:#888;margin-bottom:6px;display:block}
-.input{width:100%;padding:13px 14px;background:#2a2a4a;border:1px solid #3a3a5a;border-radius:12px;color:#fff;font-size:16px;outline:none;transition:border .2s}
-.input:focus{border-color:#f5c518}
-.input::placeholder{color:#555}
-.steps{display:flex;justify-content:space-between;margin-bottom:20px;position:relative}
-.steps::before{content:'';position:absolute;top:16px;left:16px;right:16px;height:2px;background:#2a2a4a;z-index:0}
-.step{display:flex;flex-direction:column;align-items:center;gap:6px;z-index:1}
-.step-circle{width:32px;height:32px;border-radius:50%;background:#2a2a4a;border:2px solid #3a3a5a;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
-.step.done .step-circle{background:#4caf50;border-color:#4caf50}
-.step.active .step-circle{background:#f5c518;border-color:#f5c518;color:#000}
-.step-label{font-size:10px;color:#888}
-.step.active .step-label{color:#f5c518}
-.step.done .step-label{color:#4caf50}
-.phone-display{background:#0f0f1a;border:2px solid #f5c518;border-radius:14px;padding:16px;text-align:center;margin:12px 0}
-.phone-number{font-size:22px;font-weight:800;color:#f5c518;letter-spacing:2px}
-.phone-sub{font-size:11px;color:#888;margin-top:4px}
-.map-area{width:100%;height:150px;background:#0f0f1a;border-radius:14px;border:1px solid #2a2a4a;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#555;font-size:13px;margin-bottom:12px}
-.tabs{display:flex;background:#1a1a2e;padding:8px 12px;gap:8px;border-bottom:1px solid #2a2a4a}
-.tab{flex:1;padding:10px;border:none;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;background:#2a2a4a;color:#888;transition:all .3s}
-.tab.active{background:linear-gradient(135deg,#f5c518,#ff6b35);color:#000}
-.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2a2a4a}
-.info-row:last-child{border-bottom:none}
-.info-label{color:#888;font-size:13px}
-.info-value{font-weight:600;font-size:14px}
-.contact-box{background:linear-gradient(135deg,#1a2a1a,#1a1a2e);border:1px solid #4caf50;border-radius:16px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:12px}
-.contact-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f5c518,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.contact-info{flex:1}
-.contact-name{font-size:15px;font-weight:700}
-.contact-phone{font-size:13px;color:#4caf50;margin-top:2px}
-.driver-card{background:linear-gradient(135deg,#1a2a1a,#1a1a2e);border:1px solid #4caf50;border-radius:16px;padding:16px;margin-bottom:12px}
-.driver-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#f5c518,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:20px}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center}
-.stat-box{background:#0f0f1a;border-radius:10px;padding:8px}
-.stat-val{font-size:16px;font-weight:800;color:#f5c518}
-.stat-lbl{font-size:10px;color:#888}
-.badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700}
-.badge-green{background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
-.badge-yellow{background:#3a3a1a;color:#f5c518;border:1px solid #f5c518}
-/* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:flex-end;justify-content:center}
-.modal{background:#1a1a2e;border-radius:20px 20px 0 0;padding:24px 16px 32px;width:100%;max-width:500px;border-top:1px solid #2a2a4a}
-.modal-title{font-size:18px;font-weight:800;margin-bottom:6px}
-.modal-sub{font-size:13px;color:#888;margin-bottom:20px}
-.sos-btn{position:fixed;bottom:80px;right:16px;width:56px;height:56px;background:#f44336;border-radius:50%;border:none;font-size:11px;font-weight:900;color:#fff;cursor:pointer;box-shadow:0 4px 20px rgba(244,67,54,.5);z-index:200;animation:pulse 2s infinite;display:none}
-@keyframes pulse{0%,100%{box-shadow:0 4px 20px rgba(244,67,54,.5)}50%{box-shadow:0 4px 30px rgba(244,67,54,.9)}}
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;background:#1a3a1a;color:#4caf50;border:1px solid #4caf50}
-.toast.show{opacity:1}
-.toast.err{background:#3a1a1a;color:#f44336;border-color:#f44336}
-.hidden{display:none}
-.text-gold{color:#f5c518}.text-green{color:#4caf50}.text-gray{color:#888}
-.text-sm{font-size:12px}.bold{font-weight:700}.text-center{text-align:center}
-.mt{margin-top:12px}.mb{margin-bottom:12px}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#0f0f1a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fff}
+
+/* ===== XARITA ===== */
+#map{
+  position:fixed;inset:0;z-index:1;
+  background:#1a1a2e;
+}
+.leaflet-tile-pane{filter:brightness(.85) saturate(.9) hue-rotate(200deg)}
+
+/* ===== MARKAZIY PIN ===== */
+#pin-container{
+  position:fixed;
+  left:50%;top:50%;
+  transform:translate(-50%,-100%);
+  z-index:10;
+  pointer-events:none;
+  transition:transform .15s ease;
+}
+#pin-container.dragging{transform:translate(-50%,-110%)}
+#pin-icon{
+  width:44px;height:44px;
+  background:linear-gradient(135deg,#f5c518,#ff6b35);
+  border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg);
+  box-shadow:0 4px 20px rgba(245,197,24,.45);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;
+}
+#pin-icon::after{
+  content:'';position:absolute;
+  width:14px;height:14px;
+  background:#0f0f1a;border-radius:50%;
+}
+#pin-shadow{
+  width:16px;height:6px;
+  background:rgba(0,0,0,.4);
+  border-radius:50%;
+  margin:2px auto 0;
+  filter:blur(2px);
+  transition:all .15s ease;
+}
+#pin-container.dragging #pin-shadow{
+  width:10px;opacity:.3;margin-top:6px;
+}
+
+/* ===== GPS TUGMA ===== */
+#gps-btn{
+  position:fixed;right:16px;
+  z-index:20;
+  width:48px;height:48px;
+  background:#1a1a2e;
+  border:1px solid #2a2a4a;
+  border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  box-shadow:0 4px 16px rgba(0,0,0,.5);
+  font-size:22px;
+  transition:all .2s;
+  bottom:280px;
+}
+#gps-btn:active{background:#2a2a4a;transform:scale(.93)}
+#gps-btn.locating{animation:pulse-btn 1s infinite}
+@keyframes pulse-btn{0%,100%{box-shadow:0 4px 16px rgba(0,0,0,.5)}50%{box-shadow:0 4px 24px rgba(245,197,24,.4)}}
+
+/* ===== PASTKI PANEL ===== */
+#bottom-panel{
+  position:fixed;bottom:0;left:0;right:0;
+  z-index:20;
+  background:#0f0f1a;
+  border-top:1px solid #1e1e36;
+  border-radius:24px 24px 0 0;
+  padding:12px 16px 32px;
+  box-shadow:0 -8px 40px rgba(0,0,0,.6);
+}
+
+/* Drag tutqich */
+.drag-handle{
+  width:40px;height:4px;
+  background:#2a2a4a;border-radius:2px;
+  margin:0 auto 14px;
+}
+
+/* Manzil qatori */
+.addr-row{
+  display:flex;align-items:center;gap:10px;
+  background:#1a1a2e;
+  border:1px solid #2a2a4a;
+  border-radius:14px;
+  padding:12px 14px;
+  margin-bottom:10px;
+  min-height:52px;
+}
+.addr-dot{
+  width:10px;height:10px;border-radius:50%;flex-shrink:0;
+}
+.addr-dot.pickup{background:#4caf50}
+.addr-dot.dest{background:#f5c518}
+.addr-text{flex:1;font-size:14px;line-height:1.3;color:#fff}
+.addr-text.placeholder{color:#555}
+.addr-edit{
+  font-size:11px;color:#f5c518;
+  padding:4px 8px;border:1px solid #f5c51844;
+  border-radius:8px;white-space:nowrap;cursor:pointer;
+  background:none;flex-shrink:0;
+}
+
+/* Mode switcher */
+.mode-row{
+  display:flex;gap:8px;margin-bottom:12px;
+}
+.mode-btn{
+  flex:1;padding:9px;border:none;border-radius:12px;
+  font-size:12px;font-weight:700;cursor:pointer;
+  transition:all .2s;
+}
+.mode-btn.active{background:linear-gradient(135deg,#f5c518,#ff6b35);color:#000}
+.mode-btn:not(.active){background:#1a1a2e;color:#888;border:1px solid #2a2a4a}
+
+/* Asosiy tugma */
+#confirm-btn{
+  width:100%;padding:15px;border:none;
+  border-radius:16px;font-size:16px;font-weight:800;
+  background:linear-gradient(135deg,#f5c518,#ff6b35);
+  color:#000;cursor:pointer;
+  transition:transform .15s,box-shadow .15s;
+  box-shadow:0 4px 20px rgba(245,197,24,.3);
+}
+#confirm-btn:active{transform:scale(.97);box-shadow:0 2px 10px rgba(245,197,24,.2)}
+#confirm-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* Koordinata ko'rsatgich */
+#coord-badge{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  z-index:20;
+  background:rgba(10,10,20,.85);
+  backdrop-filter:blur(8px);
+  border:1px solid #2a2a4a;
+  border-radius:20px;
+  padding:6px 14px;
+  font-size:11px;color:#888;
+  pointer-events:none;
+  white-space:nowrap;
+  transition:opacity .3s;
+}
+
+/* Izlash panel (pastki panel ustida) */
+#search-overlay{
+  position:fixed;inset:0;z-index:30;
+  background:rgba(0,0,0,.7);
+  display:none;align-items:flex-end;
+}
+#search-box{
+  width:100%;background:#0f0f1a;
+  border-radius:24px 24px 0 0;
+  padding:16px 16px 40px;
+  max-height:80vh;overflow-y:auto;
+}
+#search-inp{
+  width:100%;padding:13px 14px;
+  background:#1a1a2e;border:1px solid #3a3a5a;
+  border-radius:12px;color:#fff;font-size:15px;
+  outline:none;margin-bottom:12px;
+}
+#search-inp::placeholder{color:#555}
+.search-result{
+  padding:12px 0;border-bottom:1px solid #1e1e36;
+  cursor:pointer;display:flex;align-items:center;gap:10px;
+}
+.search-result:last-child{border-bottom:none}
+.search-result:active{opacity:.7}
+.sr-icon{font-size:18px;width:28px;text-align:center;flex-shrink:0}
+.sr-name{font-size:14px;font-weight:600}
+.sr-sub{font-size:12px;color:#888;margin-top:2px}
+.search-close{
+  background:none;border:none;color:#888;
+  font-size:13px;cursor:pointer;
+  float:right;padding:4px 8px;
+}
+
+/* Toast */
+#toast{
+  position:fixed;top:60px;left:50%;transform:translateX(-50%);
+  z-index:50;background:#1a3a1a;color:#4caf50;
+  border:1px solid #4caf5066;border-radius:20px;
+  padding:8px 18px;font-size:13px;font-weight:600;
+  opacity:0;transition:opacity .3s;pointer-events:none;
+  white-space:nowrap;
+}
+#toast.show{opacity:1}
+#toast.err{background:#3a1a1a;color:#f44336;border-color:#f4433666}
+
+/* Leaflet override */
+.leaflet-control-attribution{display:none}
+.leaflet-control-zoom{display:none}
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>🚕 AndTaxi</h1>
-  <p>Andijon ↔ Toshkent</p>
+<!-- Xarita -->
+<div id="map"></div>
+
+<!-- Markaziy pin -->
+<div id="pin-container">
+  <div id="pin-icon"></div>
+  <div id="pin-shadow"></div>
 </div>
 
-<div class="tabs hidden" id="appTabs">
-  <button class="tab active" onclick="showTab('home',this)">🏠 Bosh</button>
-  <button class="tab" onclick="showTab('trips',this)">🚕 Triplar</button>
-  <button class="tab" onclick="showTab('profile',this)">👤 Profil</button>
+<!-- Koordinata badge -->
+<div id="coord-badge">📍 Joylashuv aniqlanmoqda...</div>
+
+<!-- GPS tugma -->
+<button id="gps-btn" onclick="goToMyLocation()" title="Mening joylashuvim">📍</button>
+
+<!-- Pastki panel -->
+<div id="bottom-panel">
+  <div class="drag-handle"></div>
+
+  <!-- Olib ketish joyi -->
+  <div class="addr-row" id="pickup-row" onclick="openSearch('pickup')">
+    <div class="addr-dot pickup"></div>
+    <div class="addr-text placeholder" id="pickup-text">Manzilni belgilang yoki xaritadan tanlang</div>
+    <button class="addr-edit" onclick="event.stopPropagation();openSearch('pickup')">✏️ Tahrir</button>
+  </div>
+
+  <!-- Borish joyi -->
+  <div class="addr-row" id="dest-row" onclick="openSearch('dest')">
+    <div class="addr-dot dest"></div>
+    <div class="addr-text placeholder" id="dest-text">Borish manzili</div>
+    <button class="addr-edit" onclick="event.stopPropagation();openSearch('dest')">✏️ Tahrir</button>
+  </div>
+
+  <!-- Mode tanlash -->
+  <div class="mode-row">
+    <button class="mode-btn active" id="mode-pickup" onclick="setMode('pickup')">📍 Mening joyim</button>
+    <button class="mode-btn" id="mode-dest" onclick="setMode('dest')">🏁 Borish joyi</button>
+  </div>
+
+  <!-- Tasdiqlash -->
+  <button id="confirm-btn" onclick="confirmLocation()" disabled>
+    Joylashuvni tasdiqlash →
+  </button>
 </div>
 
-<!-- ===== REG FLOW ===== -->
-<div id="regFlow" class="page">
-
-  <!-- STEP 0: ROL -->
-  <div id="s0">
-    <div class="text-center" style="padding:24px 0 16px">
-      <div style="font-size:56px">🚕</div>
-      <h2 style="font-size:20px;margin:8px 0 4px">Xush kelibsiz!</h2>
-      <p class="text-gray text-sm">Andijon ↔ Toshkent yo'nalishi</p>
+<!-- Izlash overlay -->
+<div id="search-overlay" onclick="closeSearch(event)">
+  <div id="search-box">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;flex:1" id="search-title">Manzil kiriting</div>
+      <button class="search-close" onclick="closeSearch()">✕ Yopish</button>
     </div>
-    <div class="role-grid">
-      <div class="role-card" id="dCard" onclick="pickRole('driver')">
-        <div class="icon">🚗</div>
-        <div class="label">Haydovchi</div>
-        <div class="sublabel">Yo'lovchi toping</div>
-      </div>
-      <div class="role-card" id="pCard" onclick="pickRole('passenger')">
-        <div class="icon">👤</div>
-        <div class="label">Yo'lovchi</div>
-        <div class="sublabel">Taksi chaqiring</div>
-      </div>
-    </div>
-    <button class="btn btn-primary" id="roleBtn" onclick="go(1)" disabled>Davom etish →</button>
-  </div>
-
-  <!-- STEP 1: TELEFON -->
-  <div id="s1" class="hidden">
-    <div class="steps">
-      <div class="step active"><div class="step-circle">1</div><div class="step-label">Raqam</div></div>
-      <div class="step"><div class="step-circle">2</div><div class="step-label">Joylashuv</div></div>
-      <div class="step"><div class="step-circle">3</div><div class="step-label">Tayyor</div></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">📱 Telefon raqam</div>
-      <p class="text-gray text-sm mb">
-        Aloqa uchun raqamingizni kiriting.<br>
-        Haydovchi yoki yo'lovchi ko'radi.
-      </p>
-      <div class="input-group">
-        <label class="input-label">O'zbekiston raqami</label>
-        <input class="input" id="phoneInp" type="tel"
-          placeholder="+998 90 123 45 67"
-          maxlength="13" oninput="fmtPhone(this)">
-      </div>
-      <button class="btn btn-primary" onclick="confirmPhone()">
-        ✅ Raqamni tasdiqlash
-      </button>
-    </div>
-
-    <!-- Raqam tasdiqlangandan keyin -->
-    <div id="phoneConfirmed" class="hidden">
-      <div class="phone-display">
-        <div class="phone-number" id="displayPhone">—</div>
-        <div class="phone-sub">✅ Aloqa raqami</div>
-      </div>
-      <button class="btn btn-primary" onclick="go(2)">Davom etish →</button>
-      <button class="btn btn-outline" onclick="changePhone()">✏️ Raqamni o'zgartirish</button>
-    </div>
-
-    <button class="btn btn-secondary" onclick="go(0)" style="margin-top:4px">← Orqaga</button>
-  </div>
-
-  <!-- STEP 2: LOKATSIYA -->
-  <div id="s2" class="hidden">
-    <div class="steps">
-      <div class="step done"><div class="step-circle">✓</div><div class="step-label">Raqam</div></div>
-      <div class="step active"><div class="step-circle">2</div><div class="step-label">Joylashuv</div></div>
-      <div class="step"><div class="step-circle">3</div><div class="step-label">Tayyor</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📍 Joylashuv</div>
-      <div class="map-area" id="mapBox">
-        <span style="font-size:32px">📍</span><span>Joylashuvingizni aniqlang</span>
-      </div>
-      <button class="btn btn-primary" onclick="getLoc()">📍 Joylashuvni aniqlash</button>
-    </div>
-
-    <!-- Haydovchi uchun -->
-    <div id="driverFields" class="hidden">
-      <div class="card">
-        <div class="card-title">🚗 Mashina ma'lumotlari</div>
-        <div class="input-group">
-          <label class="input-label">Mashina turi</label>
-          <input class="input" id="carMdl" placeholder="Cobalt, Malibu, Nexia...">
-        </div>
-        <div class="input-group">
-          <label class="input-label">Davlat raqami</label>
-          <input class="input" id="carNum" placeholder="01A 123 BC">
-        </div>
-        <div class="input-group">
-          <label class="input-label">Bo'sh o'rindiqlar soni</label>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px">
-            <button class="btn btn-secondary" id="sb1" onclick="setSeat(1)" style="margin:0">1</button>
-            <button class="btn btn-secondary" id="sb2" onclick="setSeat(2)" style="margin:0">2</button>
-            <button class="btn btn-secondary" id="sb3" onclick="setSeat(3)" style="margin:0">3</button>
-            <button class="btn btn-secondary" id="sb4" onclick="setSeat(4)" style="margin:0">4</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Yo'lovchi uchun -->
-    <div id="passFields" class="hidden">
-      <div class="card">
-        <div class="card-title">🪑 O'rindiq tanlang</div>
-        <div class="role-grid">
-          <div class="role-card" id="frontCard" onclick="setSeatPref('front')">
-            <div class="icon">⬆️</div>
-            <div class="label">Old o'rindiq</div>
-            <div class="sublabel">Biroz qimmat</div>
-          </div>
-          <div class="role-card" id="backCard" onclick="setSeatPref('back')">
-            <div class="icon">⬇️</div>
-            <div class="label">Orqa o'rindiq</div>
-            <div class="sublabel">Arzonroq</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <button class="btn btn-primary" onclick="go(3)" style="margin-top:8px">Davom etish →</button>
-  </div>
-
-  <!-- STEP 3: TAYYOR -->
-  <div id="s3" class="hidden">
-    <div class="steps">
-      <div class="step done"><div class="step-circle">✓</div><div class="step-label">Raqam</div></div>
-      <div class="step done"><div class="step-circle">✓</div><div class="step-label">Joylashuv</div></div>
-      <div class="step active"><div class="step-circle">3</div><div class="step-label">Tayyor</div></div>
-    </div>
-    <div class="text-center" style="padding:20px 0">
-      <div style="font-size:60px;margin-bottom:12px">🎉</div>
-      <h2 style="font-size:22px;margin-bottom:6px">Tayyor!</h2>
-    </div>
-    <div class="card">
-      <div class="info-row"><span class="info-label">📱 Aloqa raqami</span><span class="info-value text-gold" id="sumPhone">—</span></div>
-      <div class="info-row"><span class="info-label">🏷️ Rol</span><span class="info-value" id="sumRole">—</span></div>
-      <div class="info-row"><span class="info-label">📍 Joylashuv</span><span class="info-value text-green">✅ Saqlandi</span></div>
-    </div>
-    <button class="btn btn-primary" onclick="startApp()">🚀 Boshlash!</button>
+    <input id="search-inp" placeholder="Ko'cha, joy nomi..." oninput="onSearch(this.value)">
+    <div id="search-results"></div>
   </div>
 </div>
 
-<!-- ===== MAIN APP ===== -->
-<div id="mainApp" class="hidden">
-
-  <!-- HOME TAB -->
-  <div id="tabHome" class="page">
-
-    <!-- HAYDOVCHI -->
-    <div id="driverHome" class="hidden">
-      <div class="card">
-        <div class="card-title">Holat</div>
-        <span id="qStatus" class="badge badge-yellow">⏸ Navbatda emas</span>
-      </div>
-      <button class="btn btn-green" id="qBtn" onclick="toggleQ()">🟢 Navbatga kirish</button>
-      <div class="card">
-        <div class="card-title">🗺️ Marshrut</div>
-        <div class="map-area">
-          <span style="font-size:32px">🗺️</span>
-          <span>Yo'lovchilar topilganda ko'rinadi</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- YO'LOVCHI -->
-    <div id="passHome" class="hidden">
-      <div class="card">
-        <div class="card-title">🔍 Taksi qidirish</div>
-        <div class="info-row">
-          <span class="info-label">🟢 Qayerdan</span>
-          <span class="info-value text-gold">Andijon</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">🔴 Qayerga</span>
-          <span class="info-value">Toshkent</span>
-        </div>
-      </div>
-      <button class="btn btn-primary" id="srchBtn" onclick="searchTaxi()">
-        🔍 Haydovchi qidirish
-      </button>
-      <div id="foundDriver" class="hidden">
-        <div class="driver-card">
-          <div class="driver-header">
-            <div class="avatar">🚗</div>
-            <div>
-              <div class="bold" id="dName">—</div>
-              <div class="text-gray text-sm" id="dCar">—</div>
-            </div>
-            <span class="badge badge-green">5⭐</span>
-          </div>
-          <!-- Haydovchi aloqa raqami -->
-          <div class="contact-box" style="margin-bottom:12px">
-            <div class="contact-avatar">📞</div>
-            <div class="contact-info">
-              <div class="contact-name">Aloqa raqami</div>
-              <div class="contact-phone" id="dPhone">—</div>
-            </div>
-            <button onclick="callDriver()" style="background:#4caf50;border:none;border-radius:10px;padding:8px 14px;color:#fff;font-weight:700;cursor:pointer">📞</button>
-          </div>
-          <div class="stat-grid">
-            <div class="stat-box"><div class="stat-val" id="dSeats">—</div><div class="stat-lbl">O'rindiq</div></div>
-            <div class="stat-box"><div class="stat-val">~2km</div><div class="stat-lbl">Masofa</div></div>
-            <div class="stat-box"><div class="stat-val">~5min</div><div class="stat-lbl">Kutish</div></div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
-            <button class="btn btn-green" onclick="acceptOffer()" style="margin:0">✅ Qabul</button>
-            <button class="btn btn-danger" onclick="rejectOffer()" style="margin:0">❌ Rad</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TRIPS TAB -->
-  <div id="tabTrips" class="page hidden">
-    <div class="text-center text-gray text-sm mt">Triplar tarixi bu yerda ko'rinadi</div>
-  </div>
-
-  <!-- PROFILE TAB -->
-  <div id="tabProfile" class="page hidden">
-    <div class="card">
-      <div class="info-row">
-        <span class="info-label">👤 Ism</span>
-        <span class="info-value" id="profName">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">📱 Aloqa raqami</span>
-        <span class="info-value text-gold" id="profPhone">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">🏷️ Rol</span>
-        <span class="info-value" id="profRole">—</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">⭐ Reyting</span>
-        <span class="info-value text-gold">5.0</span>
-      </div>
-    </div>
-    <!-- Raqam o'zgartirish -->
-    <button class="btn btn-outline" onclick="showChangePhoneModal()">
-      ✏️ Aloqa raqamini o'zgartirish
-    </button>
-    <button class="btn btn-danger" onclick="logout()" style="margin-top:4px">🚪 Chiqish</button>
-  </div>
-</div>
-
-<!-- ===== RAQAM O'ZGARTIRISH MODAL ===== -->
-<div id="changePhoneModal" class="modal-overlay hidden" onclick="closeModal(event)">
-  <div class="modal">
-    <div class="modal-title">📱 Aloqa raqami</div>
-    <div class="modal-sub" id="modalSub">
-      Hozirgi raqam: <b id="modalCurrentPhone">—</b><br>
-      Ushbu raqam haydovchi/yo'lovchiga ko'rsatiladi
-    </div>
-
-    <div class="phone-display" id="modalPhoneDisplay">
-      <div class="phone-number" id="modalPhoneNum">—</div>
-      <div class="phone-sub">Joriy aloqa raqami</div>
-    </div>
-
-    <p class="text-gray text-sm mb" style="text-align:center">
-      Boshqa raqam ishlatmoqchimisiz?
-    </p>
-
-    <div class="input-group">
-      <label class="input-label">Yangi raqam (ixtiyoriy)</label>
-      <input class="input" id="newPhoneInp" type="tel"
-        placeholder="+998 90 123 45 67"
-        maxlength="13" oninput="fmtPhone(this)">
-    </div>
-
-    <button class="btn btn-primary" onclick="saveNewPhone()">
-      ✅ Shu raqamni ishlatish
-    </button>
-    <button class="btn btn-secondary" onclick="keepCurrentPhone()">
-      👍 Joriy raqam yaxshi
-    </button>
-  </div>
-</div>
-
-<button class="sos-btn" id="sosBtn" onclick="doSOS()">SOS</button>
-<div class="toast" id="toast"></div>
+<div id="toast"></div>
 
 <script>
+// ===== TELEGRAM SETUP =====
 const tg = window.Telegram?.WebApp;
-if(tg){ tg.ready(); tg.expand(); tg.setHeaderColor('#0f0f1a'); }
-
-const API = window.location.hostname === 'localhost'
-  ? 'http://localhost:8000'
-  : 'https://andijon-toshkent-bot-production.up.railway.app';
-
-const USER_ID   = tg?.initDataUnsafe?.user?.id || 0;
-const USER_NAME = tg?.initDataUnsafe?.user?.first_name || 'Foydalanuvchi';
-const STORAGE_KEY = 'andtaxi_user_' + USER_ID;
+if(tg){ tg.ready(); tg.expand(); tg.setHeaderColor?.('#0f0f1a'); }
 
 // ===== STATE =====
-let S = {
-  role: null, phone: null, contactPhone: null,
-  loc: null, seats: null, seatPref: null, inQ: false
-};
+let map, currentMode = 'pickup';
+let pickupMarker = null, destMarker = null;
+let pickupCoord = null, destCoord = null;
+let pickupAddr = '', destAddr = '';
+let isDragging = false;
+let reverseTimeout = null;
 
-// ===== LOCAL STORAGE — saqlangan foydalanuvchi =====
-function loadUser(){
-  try{
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if(saved) return JSON.parse(saved);
-  }catch(e){}
-  return null;
+// Andijon markazi (default)
+const ANDIJON_CENTER = [40.7831, 72.3442];
+const TOSHKENT_CENTER = [41.2995, 69.2401];
+
+// ===== XARITA INIT =====
+function initMap(){
+  map = L.map('map', {
+    center: ANDIJON_CENTER,
+    zoom: 14,
+    zoomControl: false,
+    attributionControl: false,
+  });
+
+  // OpenStreetMap tiles (bepul, lekin yaxshi ko'rinish)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19, minZoom:10
+  }).addTo(map);
+
+  // Xarita harakatlanayotganda
+  map.on('movestart', ()=>{
+    isDragging = true;
+    document.getElementById('pin-container').classList.add('dragging');
+    clearTimeout(reverseTimeout);
+  });
+
+  map.on('move', ()=>{
+    updateCoordBadge(map.getCenter());
+  });
+
+  map.on('moveend', ()=>{
+    isDragging = false;
+    document.getElementById('pin-container').classList.remove('dragging');
+    const center = map.getCenter();
+    updateCoordBadge(center);
+    reverseGeocode(center.lat, center.lng);
+  });
+
+  // GPS bilan boshlash
+  goToMyLocation();
 }
 
-function saveUser(data){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){}
-}
+// ===== GPS — O'Z JOYLASHUVIM =====
+function goToMyLocation(){
+  const btn = document.getElementById('gps-btn');
+  btn.classList.add('locating');
+  btn.textContent = '⏳';
 
-// ===== ILOVANI OCHISHDA =====
-window.onload = function(){
-  const saved = loadUser();
-  if(saved && saved.phone && saved.role){
-    // Oldin ro'yxatdan o'tgan — raqam modal ko'rsat
-    S = {...S, ...saved};
-    showPhoneCheckModal(saved.phone);
-  }
-  // Aks holda reg flow ko'rinadi (default)
-};
-
-// ===== RAQAM TEKSHIRISH MODAL (QAYTA KIRGANDA) =====
-function showPhoneCheckModal(savedPhone){
-  document.getElementById('modalCurrentPhone').textContent = savedPhone;
-  document.getElementById('modalPhoneNum').textContent = savedPhone;
-  document.getElementById('modalSub').innerHTML =
-    `Aloqa uchun raqam: <b>${savedPhone}</b><br>Haydovchi/yo'lovchiga ko'rsatiladi`;
-  document.getElementById('changePhoneModal').classList.remove('hidden');
-}
-
-function keepCurrentPhone(){
-  document.getElementById('changePhoneModal').classList.add('hidden');
-  // Ro'yxatdan o'tgan user — to'g'ri appga o'tamiz
-  enterApp();
-}
-
-function saveNewPhone(){
-  const inp = document.getElementById('newPhoneInp').value;
-  const phone = normalizePhone(inp);
-  if(!phone){
-    // Bo'sh bo'lsa joriy raqamni saqla
-    keepCurrentPhone(); return;
-  }
-  S.phone = phone;
-  saveUser({...S, phone: phone});
-  document.getElementById('changePhoneModal').classList.add('hidden');
-  toast('✅ Raqam yangilandi: ' + phone);
-  enterApp();
-}
-
-function showChangePhoneModal(){
-  document.getElementById('modalCurrentPhone').textContent = S.phone || '—';
-  document.getElementById('modalPhoneNum').textContent = S.phone || '—';
-  document.getElementById('newPhoneInp').value = '';
-  document.getElementById('changePhoneModal').classList.remove('hidden');
-}
-
-function closeModal(e){
-  if(e.target.id === 'changePhoneModal')
-    document.getElementById('changePhoneModal').classList.add('hidden');
-}
-
-// ===== ROL =====
-function pickRole(r){
-  S.role = r;
-  document.getElementById('dCard').classList.toggle('selected', r==='driver');
-  document.getElementById('pCard').classList.toggle('selected', r==='passenger');
-  document.getElementById('roleBtn').disabled = false;
-}
-
-// ===== STEPS =====
-function go(n){
-  ['s0','s1','s2','s3'].forEach((id,i)=>
-    document.getElementById(id).classList.toggle('hidden', i!==n));
-  if(n===2){
-    document.getElementById('driverFields').classList.toggle('hidden', S.role!=='driver');
-    document.getElementById('passFields').classList.toggle('hidden', S.role!=='passenger');
-  }
-  if(n===3){
-    document.getElementById('sumPhone').textContent = S.phone || '—';
-    document.getElementById('sumRole').textContent =
-      S.role==='driver' ? '🚗 Haydovchi' : '👤 Yo\'lovchi';
-  }
-}
-
-// ===== TELEFON FORMAT =====
-function fmtPhone(el){
-  let v = el.value.replace(/\D/g,'');
-  if(!v.startsWith('998')) v = '998' + v;
-  v = v.substring(0,12);
-  el.value = '+' + v;
-}
-
-function normalizePhone(raw){
-  let digits = raw.replace(/\D/g,'');
-  if(digits.startsWith('998') && digits.length===12) return '+'+digits;
-  if(digits.length===9) return '+998'+digits;
-  if(digits.startsWith('0') && digits.length===10) return '+998'+digits.slice(1);
-  return null;
-}
-
-// ===== RAQAM TASDIQLASH (Birinchi marta) =====
-function confirmPhone(){
-  const phone = normalizePhone(document.getElementById('phoneInp').value);
-  if(!phone){ toast('❌ Raqam noto\'g\'ri!','err'); return; }
-  S.phone = phone;
-  document.getElementById('displayPhone').textContent = phone;
-  document.getElementById('phoneConfirmed').classList.remove('hidden');
-  document.getElementById('phoneInp').closest('.card').style.display = 'none';
-  toast('✅ Raqam qabul qilindi!');
-}
-
-function changePhone(){
-  S.phone = null;
-  document.getElementById('phoneConfirmed').classList.add('hidden');
-  document.getElementById('phoneInp').closest('.card').style.display = 'block';
-  document.getElementById('phoneInp').value = '';
-}
-
-// ===== LOKATSIYA =====
-function getLoc(){
-  const box = document.getElementById('mapBox');
-  box.innerHTML='<span style="font-size:32px">⏳</span><span>Aniqlanmoqda...</span>';
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      S.loc={lat:pos.coords.latitude, lng:pos.coords.longitude};
-      box.innerHTML=`<span style="font-size:32px">✅</span>
-        <span class="text-green bold">Joylashuv aniqlandi!</span>
-        <span class="text-gray text-sm">${S.loc.lat.toFixed(4)}, ${S.loc.lng.toFixed(4)}</span>`;
-      toast('✅ Joylashuv saqlandi!');
+      btn.classList.remove('locating');
+      btn.textContent = '📍';
+      const latlng = [pos.coords.latitude, pos.coords.longitude];
+      map.setView(latlng, 16, {animate:true, duration:.8});
     },
-    ()=>{ box.innerHTML='<span style="font-size:32px">❌</span><span>Ruxsat berilmadi</span>';
-          toast('❌ Joylashuvga ruxsat bering!','err'); }
+    err=>{
+      btn.classList.remove('locating');
+      btn.textContent = '📍';
+      // GPS yo'q bo'lsa Andijon markazi
+      map.setView(ANDIJON_CENTER, 14, {animate:true});
+      toast('GPS ruxsati yo\'q — xaritadan belgilang', 'err');
+    },
+    {timeout:8000, enableHighAccuracy:true}
   );
 }
 
-function setSeat(n){
-  S.seats=n;
-  [1,2,3,4].forEach(i=>{
-    const b=document.getElementById('sb'+i);
-    b.style.background=i===n?'#f5c518':'';
-    b.style.color=i===n?'#000':'';
-  });
+// ===== KOORDINATA BADGE =====
+function updateCoordBadge(latlng){
+  const el = document.getElementById('coord-badge');
+  const lat = latlng.lat.toFixed(5);
+  const lng = latlng.lng.toFixed(5);
+  el.textContent = `${lat}, ${lng}`;
 }
 
-function setSeatPref(p){
-  S.seatPref=p;
-  document.getElementById('frontCard').classList.toggle('selected',p==='front');
-  document.getElementById('backCard').classList.toggle('selected',p==='back');
-}
-
-// ===== ILOVAGA KIRISH (saqlangan user) =====
-function enterApp(){
-  document.getElementById('regFlow').classList.add('hidden');
-  document.getElementById('mainApp').classList.remove('hidden');
-  document.getElementById('appTabs').classList.remove('hidden');
-  document.getElementById('sosBtn').style.display='block';
-
-  document.getElementById('profName').textContent = USER_NAME;
-  document.getElementById('profPhone').textContent = S.phone||'—';
-  document.getElementById('profRole').textContent =
-    S.role==='driver' ? '🚗 Haydovchi' : '👤 Yo\'lovchi';
-
-  if(S.role==='driver') document.getElementById('driverHome').classList.remove('hidden');
-  else document.getElementById('passHome').classList.remove('hidden');
-}
-
-// ===== RO'YXATDAN O'TISH (birinchi marta) =====
-async function startApp(){
-  // Saqlash
-  saveUser({role:S.role, phone:S.phone, seatPref:S.seatPref, seats:S.seats});
-
+// ===== TESKARI GEOCODING (koordinata → manzil) =====
+async function reverseGeocode(lat, lng){
   try{
-    await fetch(`${API}/api/register`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        user_id:USER_ID, role:S.role,
-        phone:S.phone, location:S.loc
-      })
-    });
-  }catch(e){}
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lng=${lng}&format=json&accept-language=uz`,
+      {headers:{'Accept-Language':'uz,ru'}}
+    );
+    const d = await r.json();
+    const addr = formatAddress(d.address, d.display_name);
 
-  toast('🎉 Xush kelibsiz, '+USER_NAME+'!');
-  enterApp();
-}
-
-// ===== TABS =====
-function showTab(name,el){
-  ['tabHome','tabTrips','tabProfile'].forEach(id=>
-    document.getElementById(id).classList.add('hidden'));
-  document.getElementById('tab'+name.charAt(0).toUpperCase()+name.slice(1))
-    .classList.remove('hidden');
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-}
-
-// ===== DRIVER QUEUE =====
-function toggleQ(){
-  S.inQ=!S.inQ;
-  const btn=document.getElementById('qBtn');
-  const st=document.getElementById('qStatus');
-  if(S.inQ){
-    btn.textContent='🔴 Navbatdan chiqish'; btn.className='btn btn-danger';
-    st.textContent='🟢 Navbatda'; st.className='badge badge-green';
-    toast('✅ Navbatga kirdingiz!');
-  }else{
-    btn.textContent='🟢 Navbatga kirish'; btn.className='btn btn-green';
-    st.textContent='⏸ Navbatda emas'; st.className='badge badge-yellow';
-    toast('🔴 Navbatdan chiqdingiz');
+    if(currentMode === 'pickup'){
+      pickupCoord = {lat, lng};
+      pickupAddr = addr;
+      updatePickupUI(addr);
+    } else {
+      destCoord = {lat, lng};
+      destAddr = addr;
+      updateDestUI(addr);
+    }
+    checkConfirmBtn();
+  } catch(e){
+    // Nominatim ishlamasa koordinata ko'rsat
+    const coord = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    if(currentMode === 'pickup'){
+      pickupCoord = {lat, lng};
+      pickupAddr = coord;
+      updatePickupUI(coord);
+    } else {
+      destCoord = {lat, lng};
+      destAddr = coord;
+      updateDestUI(coord);
+    }
+    checkConfirmBtn();
   }
 }
 
-// ===== PASSENGER SEARCH =====
-// Namunali haydovchi (keyinchalik API dan keladi)
-const fakeDriver = {
-  name: 'Jasur Toshmatov',
-  car: 'Cobalt · 01A 234 BC',
-  phone: '+998901234567',
-  seats: 3
-};
-
-function searchTaxi(){
-  const btn=document.getElementById('srchBtn');
-  btn.disabled=true; btn.textContent='⏳ Qidiryapmiz...';
-  setTimeout(()=>{
-    // Haydovchi ma'lumotlarini ko'rsat
-    document.getElementById('dName').textContent = fakeDriver.name;
-    document.getElementById('dCar').textContent = fakeDriver.car;
-    document.getElementById('dPhone').textContent = fakeDriver.phone;
-    document.getElementById('dSeats').textContent = fakeDriver.seats;
-    document.getElementById('foundDriver').classList.remove('hidden');
-    btn.disabled=false; btn.textContent='🔍 Haydovchi qidirish';
-    toast('🚗 Haydovchi topildi!');
-  },2000);
+function formatAddress(addr, fallback){
+  if(!addr) return fallback;
+  const parts = [];
+  if(addr.road || addr.pedestrian) parts.push(addr.road || addr.pedestrian);
+  if(addr.house_number) parts[0] = parts[0] + ' ' + addr.house_number;
+  if(addr.suburb) parts.push(addr.suburb);
+  if(addr.city || addr.town || addr.village) parts.push(addr.city || addr.town || addr.village);
+  return parts.length ? parts.join(', ') : fallback.split(',').slice(0,2).join(',');
 }
 
-function callDriver(){
-  const phone = document.getElementById('dPhone').textContent;
-  window.location.href = 'tel:' + phone;
+// ===== UI YANGILASH =====
+function updatePickupUI(addr){
+  const el = document.getElementById('pickup-text');
+  el.textContent = addr || 'Joylashuv tanlanmadi';
+  el.classList.toggle('placeholder', !addr);
+  // Xaritada yashil marker
+  if(pickupMarker) map.removeLayer(pickupMarker);
+  if(pickupCoord){
+    pickupMarker = L.circleMarker([pickupCoord.lat, pickupCoord.lng], {
+      radius:8, color:'#4caf50', fillColor:'#4caf50', fillOpacity:1, weight:3,
+      stroke:true
+    }).addTo(map);
+  }
 }
 
-function acceptOffer(){
-  document.getElementById('foundDriver').classList.add('hidden');
-  toast('✅ Haydovchi qabul qilindi! U kelmoqda...');
+function updateDestUI(addr){
+  const el = document.getElementById('dest-text');
+  el.textContent = addr || 'Manzil kiritilmadi';
+  el.classList.toggle('placeholder', !addr);
+  // Xaritada sariq marker
+  if(destMarker) map.removeLayer(destMarker);
+  if(destCoord){
+    destMarker = L.circleMarker([destCoord.lat, destCoord.lng], {
+      radius:8, color:'#f5c518', fillColor:'#f5c518', fillOpacity:1, weight:3,
+    }).addTo(map);
+    // Ikkita marker bo'lsa ikkalasini sig'diring
+    if(pickupMarker){
+      const bounds = L.latLngBounds([
+        [pickupCoord.lat, pickupCoord.lng],
+        [destCoord.lat, destCoord.lng]
+      ]);
+      map.fitBounds(bounds, {padding:[80,80], animate:true, duration:.8});
+    }
+  }
 }
 
-function rejectOffer(){
-  document.getElementById('foundDriver').classList.add('hidden');
-  toast('❌ Rad etildi');
+// ===== MODE SWITCH =====
+function setMode(mode){
+  currentMode = mode;
+  document.getElementById('mode-pickup').classList.toggle('active', mode==='pickup');
+  document.getElementById('mode-dest').classList.toggle('active', mode==='dest');
+
+  // Agar mavjud koordinata bo'lsa shu joyga o't
+  if(mode==='pickup' && pickupCoord){
+    map.setView([pickupCoord.lat, pickupCoord.lng], 16, {animate:true});
+  } else if(mode==='dest' && destCoord){
+    map.setView([destCoord.lat, destCoord.lng], 16, {animate:true});
+  } else if(mode==='dest'){
+    // Dest uchun Toshkent markaziga o't (Andijon→Toshkent)
+    map.setView(TOSHKENT_CENTER, 13, {animate:true});
+  }
+
+  const hint = mode==='pickup'
+    ? 'Xaritani suring — mening joyim'
+    : 'Xaritani suring — borish joyi';
+  toast(hint);
 }
 
-// ===== SOS =====
-async function doSOS(){
-  navigator.geolocation.getCurrentPosition(async pos=>{
+// ===== TASDIQLASH TUGMA =====
+function checkConfirmBtn(){
+  const btn = document.getElementById('confirm-btn');
+  if(pickupCoord && destCoord){
+    btn.disabled = false;
+    btn.textContent = '🚕 Taksi chaqirish →';
+  } else if(pickupCoord){
+    btn.disabled = false;
+    btn.textContent = 'Borish joyini belgilang →';
+    btn.onclick = ()=>{ setMode('dest'); };
+    return;
+  }
+  btn.onclick = confirmLocation;
+}
+
+function confirmLocation(){
+  if(!pickupCoord){
+    toast('Avval manzilni belgilang!', 'err'); return;
+  }
+  if(!destCoord){
+    setMode('dest');
+    toast('Endi borish joyini belgilang', 'err'); return;
+  }
+
+  const data = {
+    action: 'location_selected',
+    pickup: { lat: pickupCoord.lat, lng: pickupCoord.lng, address: pickupAddr },
+    destination: { lat: destCoord.lat, lng: destCoord.lng, address: destAddr }
+  };
+
+  if(tg?.sendData){
+    tg.sendData(JSON.stringify(data));
+  } else {
+    // Test uchun
+    alert('Yuboriladi:\n' + JSON.stringify(data, null, 2));
+  }
+}
+
+// ===== IZLASH =====
+let searchMode = 'pickup';
+function openSearch(mode){
+  searchMode = mode;
+  const overlay = document.getElementById('search-overlay');
+  document.getElementById('search-title').textContent =
+    mode==='pickup' ? '📍 Olib ketish joyi' : '🏁 Borish joyi';
+  document.getElementById('search-inp').value = '';
+  document.getElementById('search-results').innerHTML = quickSuggestions(mode);
+  overlay.style.display = 'flex';
+  setTimeout(()=> document.getElementById('search-inp').focus(), 100);
+}
+
+function closeSearch(e){
+  if(!e || e.target.id==='search-overlay' || !e.target){
+    document.getElementById('search-overlay').style.display = 'none';
+    document.getElementById('search-inp').blur();
+  }
+}
+
+function quickSuggestions(mode){
+  const items = mode==='pickup' ? [
+    {icon:'🏠', name:'Uyim', sub:'Saqlangan manzil', lat:40.7831, lng:72.3442},
+    {icon:'📍', name:'Hozirgi joylashuv', sub:'GPS orqali', lat:null, lng:null, gps:true},
+    {icon:'🏙️', name:'Andijon markazi', sub:'Babur xiyoboni', lat:40.7831, lng:72.3442},
+  ] : [
+    {icon:'✈️', name:'Toshkent aeroporti', sub:'Yunusobod', lat:41.2579, lng:69.2814},
+    {icon:'🚉', name:'Toshkent temir yo\'l', sub:'Amir Temur xiyoboni', lat:41.2956, lng:69.2797},
+    {icon:'🏙️', name:'Toshkent markazi', sub:'Mustaqillik maydoni', lat:41.2995, lng:69.2401},
+    {icon:'🏥', name:'Respublika shifoxonasi', sub:'Farob ko\'chasi', lat:41.3087, lng:69.2785},
+  ];
+
+  return items.map(i=>`
+    <div class="search-result" onclick="selectSuggestion(${i.lat},${i.lng},'${i.name}',${!!i.gps})">
+      <div class="sr-icon">${i.icon}</div>
+      <div>
+        <div class="sr-name">${i.name}</div>
+        <div class="sr-sub">${i.sub}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+let searchTO;
+async function onSearch(q){
+  clearTimeout(searchTO);
+  if(q.length < 3){
+    document.getElementById('search-results').innerHTML = quickSuggestions(searchMode);
+    return;
+  }
+  searchTO = setTimeout(async()=>{
+    const res = document.getElementById('search-results');
+    res.innerHTML = '<div style="color:#888;font-size:13px;padding:12px 0">Qidirilmoqda...</div>';
     try{
-      await fetch(`${API}/api/sos`,{
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          user_id:USER_ID, name:USER_NAME,
-          lat:pos.coords.latitude, lng:pos.coords.longitude
-        })
-      });
-    }catch(e){}
-    toast('🚨 SOS adminga yuborildi!');
-  });
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&accept-language=uz&countrycodes=uz`
+      );
+      const data = await r.json();
+      if(!data.length){
+        res.innerHTML = '<div style="color:#888;font-size:13px;padding:12px 0">Natija topilmadi</div>';
+        return;
+      }
+      res.innerHTML = data.map(d=>`
+        <div class="search-result" onclick="selectSuggestion(${d.lat},${d.lon},'${d.display_name.split(',')[0]}',false)">
+          <div class="sr-icon">📌</div>
+          <div>
+            <div class="sr-name">${d.display_name.split(',')[0]}</div>
+            <div class="sr-sub">${d.display_name.split(',').slice(1,3).join(',')}</div>
+          </div>
+        </div>
+      `).join('');
+    }catch(e){
+      res.innerHTML = '<div style="color:#f44336;font-size:13px;padding:12px 0">Internet xatosi</div>';
+    }
+  }, 400);
 }
 
-// ===== LOGOUT =====
-function logout(){
-  localStorage.removeItem(STORAGE_KEY);
-  S={role:null,phone:null,loc:null,seats:null,seatPref:null,inQ:false};
-  document.getElementById('mainApp').classList.add('hidden');
-  document.getElementById('appTabs').classList.add('hidden');
-  document.getElementById('sosBtn').style.display='none';
-  document.getElementById('regFlow').classList.remove('hidden');
-  document.getElementById('driverHome').classList.add('hidden');
-  document.getElementById('passHome').classList.add('hidden');
-  document.getElementById('phoneConfirmed').classList.add('hidden');
-  const card = document.getElementById('phoneInp')?.closest('.card');
-  if(card) card.style.display='block';
-  ['s1','s2','s3'].forEach(id=>document.getElementById(id).classList.add('hidden'));
-  document.getElementById('s0').classList.remove('hidden');
+function selectSuggestion(lat, lng, name, isGps){
+  document.getElementById('search-overlay').style.display = 'none';
+  if(isGps){
+    goToMyLocation(); return;
+  }
+  const latlng = [parseFloat(lat), parseFloat(lng)];
+  map.setView(latlng, 16, {animate:true});
+
+  // Darhol belgilash
+  if(searchMode==='pickup'){
+    pickupCoord = {lat:parseFloat(lat), lng:parseFloat(lng)};
+    pickupAddr = name;
+    updatePickupUI(name);
+    currentMode = 'pickup';
+  } else {
+    destCoord = {lat:parseFloat(lat), lng:parseFloat(lng)};
+    destAddr = name;
+    updateDestUI(name);
+    currentMode = 'dest';
+  }
+  checkConfirmBtn();
+  toast('✅ ' + name);
 }
 
 // ===== TOAST =====
-function toast(msg,type='ok'){
-  const t=document.getElementById('toast');
-  t.textContent=msg;
-  t.className='toast show'+(type==='err'?' err':'');
-  setTimeout(()=>t.classList.remove('show'),2500);
+function toast(msg, type='ok'){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type==='err' ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.classList.remove('show'), 2200);
 }
+
+// ===== ISHGA TUSHIRISH =====
+window.addEventListener('load', initMap);
 </script>
 </body>
 </html>
