@@ -25,12 +25,20 @@ logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN",
-    "8961922618:AAFENS26vL5bVO1mBGrHDWjQRdOlnLW_jtg")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN env var qo'yilmagan!")
+
 ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "0").split(",")))
 WEBAPP_URL = os.getenv("WEBAPP_URL",
     "https://xalilulloh001-cpu.github.io/andijon-toshkent-bot/webapp.html")
 PORT = int(os.getenv("PORT", "8000"))
+
+# Ruxsat berilgan domenlar (CORS)
+ALLOWED_ORIGINS = [
+    "https://xalilulloh001-cpu.github.io",
+    "https://web.telegram.org",
+]
 
 # ======= BOT SETUP =======
 bot = Bot(token=BOT_TOKEN)
@@ -89,10 +97,46 @@ async def webapp_data(msg: types.Message):
                 f"Xush kelibsiz! 🎉",
                 parse_mode="Markdown"
             )
+
+        elif action == "location_selected":
+            pickup = data.get("pickup", {})
+            dest = data.get("destination", {})
+            pickup_addr = pickup.get("address", "Noma'lum")
+            dest_addr = dest.get("address", "Noma'lum")
+            pickup_lat = pickup.get("lat")
+            pickup_lng = pickup.get("lng")
+            dest_lat = dest.get("lat")
+            dest_lng = dest.get("lng")
+
+            pickup_map = f"https://maps.google.com/?q={pickup_lat},{pickup_lng}"
+            dest_map = f"https://maps.google.com/?q={dest_lat},{dest_lng}"
+
+            await msg.answer(
+                f"📍 *Manzillar tanlandi!*\n\n"
+                f"🟢 *Olib ketish:*\n{pickup_addr}\n[Xaritada ko'rish]({pickup_map})\n\n"
+                f"🏁 *Borish joyi:*\n{dest_addr}\n[Xaritada ko'rish]({dest_map})\n\n"
+                f"🔍 Haydovchi qidiryapmiz...",
+                parse_mode="Markdown"
+            )
+
+            # Admin-larga ham xabar
+            for aid in ADMIN_IDS:
+                try:
+                    await bot.send_message(aid,
+                        f"🚕 *Yangi buyurtma!*\n"
+                        f"👤 {msg.from_user.full_name} (ID: `{msg.from_user.id}`)\n\n"
+                        f"🟢 {pickup_addr}\n"
+                        f"🏁 {dest_addr}",
+                        parse_mode="Markdown")
+                except Exception:
+                    pass
+
         elif action == "join_queue":
             await msg.answer("🟢 Navbatga kirdingiz!")
+
         elif action == "leave_queue":
             await msg.answer("🔴 Navbatdan chiqdingiz.")
+
         elif action == "sos":
             lat, lng = data.get("lat"), data.get("lng")
             url = f"https://maps.google.com/?q={lat},{lng}"
@@ -101,15 +145,16 @@ async def webapp_data(msg: types.Message):
                     await bot.send_message(aid,
                         f"🚨 *SOS!*\n👤 {msg.from_user.full_name}\n"
                         f"📍 [Xarita]({url})", parse_mode="Markdown")
-                except: pass
+                except Exception:
+                    pass
             await msg.answer("🚨 SOS adminga yuborildi!")
+
     except Exception as e:
         logger.error(f"webapp_data error: {e}")
 
 # ======= FASTAPI SETUP =======
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Bot polling-ni background-da ishga tushirish
     task = asyncio.create_task(dp.start_polling(bot, allowed_updates=["message","web_app_data"]))
     logger.info("🤖 Bot polling started")
     yield
@@ -118,13 +163,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"])
 
 # ======= API ENDPOINTS =======
 
 @app.post("/api/send-otp")
 async def send_otp(request: Request):
-    """Telefon kiritilgandan keyin OTP yuborish"""
     try:
         body = await request.json()
         user_id = int(body.get("user_id", 0))
@@ -133,17 +179,13 @@ async def send_otp(request: Request):
         if not user_id:
             return JSONResponse({"ok": False, "error": "user_id kerak"})
 
-        # 6 raqamli kod
         code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-
-        # Saqlash (10 daqiqa)
         otp_store[user_id] = {
             "code": code,
             "phone": phone,
             "expires_at": datetime.now() + timedelta(minutes=10)
         }
 
-        # Telegram orqali yuborish
         await bot.send_message(
             user_id,
             f"🔐 *AndTaxi tasdiqlash kodi:*\n\n"
@@ -163,14 +205,12 @@ async def send_otp(request: Request):
 
 @app.post("/api/verify-otp")
 async def verify_otp(request: Request):
-    """Kiritilgan kodni tekshirish"""
     try:
         body = await request.json()
         user_id = int(body.get("user_id", 0))
         entered = str(body.get("code", "")).strip()
 
         stored = otp_store.get(user_id)
-
         if not stored:
             return JSONResponse({"ok": False, "error": "Avval kod yuboring"})
 
@@ -181,7 +221,6 @@ async def verify_otp(request: Request):
         if entered != stored["code"]:
             return JSONResponse({"ok": False, "error": "Kod noto'g'ri!"})
 
-        # ✅ Tasdiqlandi
         phone = stored["phone"]
         del otp_store[user_id]
 
@@ -190,7 +229,6 @@ async def verify_otp(request: Request):
             f"✅ *Telefon tasdiqlandi!*\n📱 {phone}",
             parse_mode="Markdown"
         )
-
         return JSONResponse({"ok": True, "phone": phone})
 
     except Exception as e:
@@ -233,7 +271,8 @@ async def sos(request: Request):
                 await bot.send_message(aid,
                     f"🚨 *SOS!*\n👤 {name}\n📍 [Xarita]({url})",
                     parse_mode="Markdown")
-            except: pass
+            except Exception:
+                pass
 
         await bot.send_message(user_id, "✅ SOS adminga yuborildi!")
         return JSONResponse({"ok": True})
