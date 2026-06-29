@@ -428,6 +428,7 @@ let S = {
   tripId:null, tripStatus:null,
   currentRating:0,
   activeDrvTrip:null,
+  registered:false,
 };
 
 let map1=null, map2=null, mapReady1=false, mapReady2=false;
@@ -438,7 +439,7 @@ let pollTimer=null, waitTimer=null, waitSec=0, tripSec=0;
 // ═══════════════════════════════════════════
 async function init(){
   if(!USER_ID){
-    // Test rejimi
+    // Telegram WebApp dan tashqarida ochilgan
     goPage('p0'); return;
   }
   try{
@@ -689,23 +690,37 @@ function fillSummary(){
 // RO'YXATDAN O'TISH
 // ═══════════════════════════════════════════
 async function register(){
-  const data={
-    action:'register', role:S.role, phone:S.phone,
-    location:{lat:S.loc?.lat,lng:S.loc?.lng,address:S.addr},
-    seat_pref:S.seatPref, seat_count:S.seatCount,
-    car_model:S.carModel||'', car_plate:S.carPlate||''
-  };
-  if(tg?.sendData){
-    tg.sendData(JSON.stringify(data));
-    setTimeout(()=>{
-      if(S.role==='driver') showDriverHome();
-      else showPassHome();
-    }, 500);
-  } else {
-    // Test — to'g'ridan API
-    await api('/api/user',{user_id:0}); // mock
-    if(S.role==='driver') showDriverHome();
-    else showPassHome();
+  // tg.sendData emas — to'g'ridan API (race condition yo'q)
+  const btn = document.querySelector('#p4 .btn-gold');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Saqlanmoqda...'; }
+
+  try{
+    const res = await api('/api/register', {
+      user_id:   USER_ID,
+      name:      USER_NAME,
+      role:      S.role,
+      phone:     S.phone,
+      location:  {lat:S.loc?.lat, lng:S.loc?.lng, address:S.addr},
+      seat_pref: S.seatPref,
+      seat_count:S.seatCount,
+      car_model: S.carModel||'',
+      car_plate: S.carPlate||''
+    });
+
+    if(res.ok){
+      S.registered = true;
+      toast('✅ Ro'yxatdan o'tdingiz!');
+      setTimeout(()=>{
+        if(S.role==='driver') showDriverHome();
+        else showPassHome();
+      }, 600);
+    } else {
+      toast(res.error||'Xato yuz berdi','err');
+      if(btn){ btn.disabled=false; btn.textContent='🚀 Ro'yxatdan o'tish!'; }
+    }
+  } catch(e){
+    toast('Internet xatosi','err');
+    if(btn){ btn.disabled=false; btn.textContent='🚀 Ro'yxatdan o'tish!'; }
   }
 }
 
@@ -722,6 +737,8 @@ function showPassHome(){
 // TAKSI CHAQIRISH
 // ═══════════════════════════════════════════
 async function callTaxi(){
+  if(!USER_ID){ toast('Telegram orqali kiring','err'); return; }
+  if(!S.loc){ toast('Avval joylashuvni belgilang','err'); return; }
   document.getElementById('callBtn').disabled=true;
   document.getElementById('callBtn').textContent='⏳ Qidirilmoqda...';
   try{
