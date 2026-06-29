@@ -700,7 +700,16 @@ async function doRegister() {
 
     if (res.ok) {
       showToast("Ro'yxatdan o'tdingiz!");
-      setTimeout(function() {
+      // DB da registered=true bo'lganini tekshiramiz
+      setTimeout(async function() {
+        try {
+          var check = await apiPost("/api/user", { user_id: USER_ID });
+          if (check.ok && check.user && check.user.registered) {
+            S.registered = true;
+            S.role  = check.user.role || S.role;
+            S.phone = check.user.phone || S.phone;
+          }
+        } catch(e) { /* ignore */ }
         if (S.role === "driver") { showDriverHome(); }
         else { showPassHome(); }
       }, 700);
@@ -746,12 +755,16 @@ async function doCallTaxi() {
       startWaitTimer();
       startPolling();
     } else {
-      showToast(res.error || "Xato", true);
+      var errMsg = res.error || "Xato";
+      // Agar ro'yxat xatosi bo'lsa, foydalanuvchi buni bilsin
+      showToast(errMsg, true);
+      console.error("call-taxi error:", errMsg, "user_id:", USER_ID);
       btn.disabled = false;
       btn.textContent = "Taksi chaqirish!";
     }
   } catch (e) {
     showToast("Internet xatosi", true);
+    console.error("call-taxi exception:", e);
     btn.disabled = false;
     btn.textContent = "Taksi chaqirish!";
   }
