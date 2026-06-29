@@ -296,7 +296,7 @@ async def api_register(request: Request):
         car_model  = body.get("car_model", "")
         car_plate  = body.get("car_plate", "")
 
-        await db.save_user(
+        ok = await db.save_user(
             user_id,
             name       = name,
             phone      = phone,
@@ -313,7 +313,10 @@ async def api_register(request: Request):
         )
 
         role_txt = "🚗 Haydovchi" if role == "driver" else "👤 Yo'lovchi"
-        logger.info(f"Registered: {role_txt} user={user_id}")
+        if not ok:
+            logger.error(f"/api/register: save_user FAILED user_id={user_id}")
+            return JSONResponse({{"ok": False, "error": "DB xato, qayta urining"}})
+        logger.info(f"Registered OK: {{role_txt}} user={{user_id}}")
 
         # Bot orqali xabar (ixtiyoriy — xato bo'lsa ham ok qaytaramiz)
         try:
@@ -349,8 +352,12 @@ async def call_taxi(request: Request):
         loc     = body.get("location", {})
 
         user = await db.get_user(user_id)
-        if not user or not user.get("registered"):
-            return JSONResponse({"ok": False, "error": "Avval ro'yxatdan o'ting"})
+        if not user:
+            logger.warning(f"/api/call-taxi: user topilmadi user_id={user_id}")
+            return JSONResponse({"ok": False, "error": "Foydalanuvchi topilmadi, qayta kiring"})
+        if not user.get("registered"):
+            logger.warning(f"/api/call-taxi: registered=False user_id={user_id} user={dict(user)}")
+            return JSONResponse({"ok": False, "error": "Ro'yxat tugallanmagan, ilovani yopib qayta oching"})
 
         # Aktiv trip bormi?
         existing = await db.get_active_trip(user_id)
