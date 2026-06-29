@@ -121,6 +121,7 @@ async def on_webapp_data(msg: types.Message):
                 loc_lng    = loc.get("lng"),
                 loc_addr   = loc.get("address",""),
                 registered = True,
+                is_active  = True,
             )
 
             role_txt = "🚗 Haydovchi" if role == "driver" else "👤 Yo'lovchi"
@@ -271,6 +272,71 @@ async def get_user(request: Request):
         })
     except Exception as e:
         logger.error(f"/api/user error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+
+@app.post("/api/register")
+async def api_register(request: Request):
+    """
+    WebApp to'g'ridan DB ga yozadi — tg.sendData race condition muammosi yo'q.
+    """
+    try:
+        body       = await request.json()
+        user_id    = int(body.get("user_id", 0))
+        if not user_id:
+            return JSONResponse({"ok": False, "error": "user_id kerak"})
+
+        name       = body.get("name", "Foydalanuvchi")
+        role       = body.get("role", "passenger")
+        phone      = body.get("phone", "")
+        loc        = body.get("location", {})
+        seat_pref  = body.get("seat_pref")
+        seat_count = body.get("seat_count")
+        car_model  = body.get("car_model", "")
+        car_plate  = body.get("car_plate", "")
+
+        await db.save_user(
+            user_id,
+            name       = name,
+            phone      = phone,
+            role       = role,
+            seat_pref  = seat_pref,
+            seat_count = seat_count,
+            car_model  = car_model,
+            car_plate  = car_plate,
+            loc_lat    = loc.get("lat"),
+            loc_lng    = loc.get("lng"),
+            loc_addr   = loc.get("address", ""),
+            registered = True,
+            is_active  = True,
+        )
+
+        role_txt = "🚗 Haydovchi" if role == "driver" else "👤 Yo'lovchi"
+        logger.info(f"Registered: {role_txt} user={user_id}")
+
+        # Bot orqali xabar (ixtiyoriy — xato bo'lsa ham ok qaytaramiz)
+        try:
+            await bot.send_message(
+                user_id,
+                f"✅ *{role_txt} sifatida ro'yxatdan o'tdingiz!*\n"
+                f"📱 {phone}\n\nIlovani oching 👇",
+                reply_markup=webapp_kb(), parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+
+        for aid in ADMIN_IDS:
+            try:
+                await bot.send_message(aid,
+                    f"🆕 *{role_txt}*\n👤 {name} `{user_id}`\n📱 {phone}",
+                    parse_mode="Markdown")
+            except Exception:
+                pass
+
+        return JSONResponse({"ok": True, "role": role})
+    except Exception as e:
+        logger.error(f"/api/register: {e}")
         return JSONResponse({"ok": False, "error": str(e)})
 
 
