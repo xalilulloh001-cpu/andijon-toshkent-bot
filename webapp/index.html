@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="AndTaxi — Andijon va Toshkent o'rtasida qulay taksi xizmati">
 <title>AndTaxi — Andijon ↔ Toshkent</title>
+<!-- Telegram WebApp SDK -->
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
@@ -615,6 +618,373 @@ header{background:var(--card);border-bottom:1px solid var(--border);height:60px;
 
 <script>
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TELEGRAM WEBAPP + API SOZLAMA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const USER_ID = tg ? tg.initDataUnsafe?.user?.id : null;
+const USER_NAME = tg ? (tg.initDataUnsafe?.user?.first_name || 'Mehmon') : 'Mehmon';
+
+// API manzili: agar HTTPS bo'lsa wss://, aks holda ws://
+const IS_PROD = location.protocol === 'https:';
+const API_BASE = IS_PROD
+  ? `https://${location.host}`
+  : 'http://localhost:8000';
+const WS_BASE  = IS_PROD
+  ? `wss://${location.host}`
+  : 'ws://localhost:8001';
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API YORDAMCHI FUNKSIYALAR
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function apiPost(path, body) {
+  try {
+    const r = await fetch(API_BASE + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    return await r.json();
+  } catch(e) {
+    logger('API xato ' + path + ': ' + e);
+    return { ok: false, error: String(e) };
+  }
+}
+async function apiGet(path) {
+  try {
+    const r = await fetch(API_BASE + path);
+    return await r.json();
+  } catch(e) {
+    logger('API GET xato ' + path + ': ' + e);
+    return { ok: false, error: String(e) };
+  }
+}
+function logger(msg) { console.log('[AndTaxi]', msg); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ILOVANI YUKLASH: Foydalanuvchi ma'lumotlari
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function loadUserData() {
+  if (!USER_ID) {
+    logger('Telegram WebApp ichida emas — demo rejim');
+    return;
+  }
+  try {
+    const res = await apiPost('/api/user', { user_id: USER_ID });
+    if (res.ok && res.user) {
+      const u = res.user;
+      // Ro'yxatdan o'tgan — rolga qarab tabni ko'rsatish
+      if (u.registered) {
+        tab(u.role === 'driver' ? 'drv' : 'pas');
+        notif('i', `👋 Xush kelibsiz, ${u.name || USER_NAME}!`, '');
+      } else {
+        notif('w', '📋 Ro\'yxatdan o\'ting', 'Bot orqali ro\'yxatdan o\'tishingiz kerak');
+      }
+      // Aktiv trip bormi?
+      if (res.trip) {
+        S.currentTrip = res.trip;
+        if (u.role === 'passenger') {
+          showPassengerActiveTrip(res.trip);
+        }
+      }
+    }
+  } catch(e) {
+    logger('loadUserData xato: ' + e);
+  }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// WEBSOCKET — REAL-TIME TRACKING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let ws = null;
+let wsHeartbeatTimer = null;
+let wsReconnectTimer = null;
+let driverMarker = null;
+
+function connectWebSocket(role) {
+  if (!USER_ID) return;
+  if (ws && ws.readyState === WebSocket.OPEN) return;
+
+  const endpoint = role === 'driver'
+    ? `${WS_BASE}/ws/driver/${USER_ID}`
+    : `${WS_BASE}/ws/passenger/${USER_ID}`;
+
+  logger('WebSocket ulanmoqda: ' + endpoint);
+  ws = new WebSocket(endpoint);
+
+  ws.onopen = () => {
+    logger('✅ WebSocket ulandi');
+    notif('s', '📡 Real-time ulandi', '');
+    // Haydovchi bo'lsa — heartbeat boshlaydi
+    if (role === 'driver') startHeartbeat();
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      handleWsMessage(data);
+    } catch(e) {
+      logger('WS xabar parse xatosi: ' + e);
+    }
+  };
+
+  ws.onerror = (e) => {
+    logger('WebSocket xato: ' + e);
+  };
+
+  ws.onclose = () => {
+    logger('🔴 WebSocket uzildi — 5 soniyadan keyin qayta ulanadi');
+    stopHeartbeat();
+    wsReconnectTimer = setTimeout(() => connectWebSocket(role), 5000);
+  };
+}
+
+function handleWsMessage(data) {
+  if (data.type === 'driver_location') {
+    // Haydovchi lokatsiyasini xaritada yangilash
+    updateDriverOnMap(data.driver_id, data.lat, data.lng);
+  } else if (data.type === 'trip_accepted') {
+    notif('s', '🚗 Haydovchi qabul qildi!', data.driver_name || '');
+  } else if (data.type === 'trip_started') {
+    notif('s', '🚀 Safar boshlandi!', 'Haydovchi yo\'lda');
+  } else if (data.type === 'trip_completed') {
+    notif('s', '🏁 Safar yakunlandi!', 'Haydovchiga baho bering');
+    openM('m-rating');
+  } else if (data.type === 'driver_offline') {
+    notif('w', '⚠️ Haydovchi oflayn', 'Boshqa haydovchi qidirilmoqda...');
+  }
+}
+
+function startHeartbeat() {
+  // Har 10 soniyada joylashuv yuborish
+  wsHeartbeatTimer = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            ws.send(JSON.stringify({
+              type: 'heartbeat',
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude
+            }));
+          },
+          () => {
+            // Geolocation ruxsat yo'q — faqat heartbeat
+            ws.send(JSON.stringify({ type: 'heartbeat', lat: null, lng: null }));
+          }
+        );
+      } else {
+        ws.send(JSON.stringify({ type: 'heartbeat', lat: null, lng: null }));
+      }
+    }
+  }, 10000);
+}
+
+function stopHeartbeat() {
+  if (wsHeartbeatTimer) { clearInterval(wsHeartbeatTimer); wsHeartbeatTimer = null; }
+}
+
+function updateDriverOnMap(driverId, lat, lng) {
+  if (!lat || !lng) return;
+  if (driverMarker) {
+    driverMarker.setLatLng([lat, lng]);
+  } else {
+    driverMarker = L.marker([lat, lng], { icon: mkIco('🚕') })
+      .addTo(map)
+      .bindPopup('Haydovchi real vaqtda');
+  }
+  // Xaritani yangi lokatsiyaga siljitish
+  map.panTo([lat, lng], { animate: true });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// YO'LOVCHI — TAKSI CHAQIRISH (HAQIQIY API)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function sendReqReal() {
+  if (!USER_ID) { notif('w', 'Telegram-dan kiring', ''); return; }
+
+  // Geolocation olish
+  if (!navigator.geolocation) {
+    notif('w', '⚠️ Geolocation qo\'llab-quvvatlanmaydi', '');
+    return;
+  }
+
+  notif('i', '📍 Joylashuvingiz aniqlanmoqda...', '');
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const res = await apiPost('/api/call-taxi', {
+        user_id: USER_ID,
+        location: { lat, lng, address: `${lat.toFixed(4)}, ${lng.toFixed(4)}` }
+      });
+
+      if (res.ok) {
+        S.currentTrip = { id: res.trip_id, status: res.status };
+        S.p.active = true;
+        document.getElementById('p-active').style.display = 'block';
+        document.getElementById('p-form').style.display = 'none';
+        notif('s', '✅ So\'rov yuborildi!', 'Haydovchi topilganda xabar beramiz');
+        // Yo'lovchi WebSocket orqali ulanadi
+        connectWebSocket('passenger');
+        // Har 10 soniyada trip holatini tekshirish
+        startTripPolling(res.trip_id);
+      } else {
+        notif('w', '❌ Xato', res.error || 'Qayta urinib ko\'ring');
+      }
+    },
+    () => {
+      notif('w', '⚠️ Joylashuv aniqlanmadi', 'Brauzer ruxsatini bering');
+    }
+  );
+}
+
+let tripPollTimer = null;
+
+function startTripPolling(tripId) {
+  if (tripPollTimer) clearInterval(tripPollTimer);
+  tripPollTimer = setInterval(async () => {
+    if (!USER_ID) return;
+    const res = await apiPost('/api/user', { user_id: USER_ID });
+    if (res.ok && res.trip) {
+      const trip = res.trip;
+      if (trip.status === 'matched') {
+        clearInterval(tripPollTimer);
+        notif('s', '🚗 Haydovchi topildi!', '');
+      } else if (trip.status === 'completed' || trip.status === 'cancelled') {
+        clearInterval(tripPollTimer);
+        S.p.active = false;
+      }
+    }
+  }, 10000);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// YO'LOVCHI — AKTIV TRIP HOLATI
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function showPassengerActiveTrip(trip) {
+  S.p.active = true;
+  S.currentTrip = trip;
+  document.getElementById('p-active').style.display = 'block';
+  document.getElementById('p-form').style.display = 'none';
+  connectWebSocket('passenger');
+}
+
+async function cancelReqReal() {
+  if (S.currentTrip && S.currentTrip.id) {
+    const res = await apiPost('/api/trip-status', {
+      trip_id: S.currentTrip.id,
+      status: 'cancelled',
+      driver_id: 0
+    });
+    if (!res.ok) { notif('w', '❌ Xato', res.error || ''); return; }
+  }
+  clearInterval(tripPollTimer);
+  stopHeartbeat();
+  if (ws) { ws.close(); ws = null; }
+  S.p.active = false;
+  S.currentTrip = null;
+  document.getElementById('p-active').style.display = 'none';
+  document.getElementById('p-form').style.display = 'block';
+  document.getElementById('track-box').style.display = 'none';
+  pStep(1);
+  notif('w', '❌ So\'rov bekor qilindi', '');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HAYDOVCHI — E'LON BERISH (HAQIQIY API)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function announceReal() {
+  if (!USER_ID) { notif('w', 'Telegram-dan kiring', ''); return; }
+
+  // Haydovchi navbatga qo'shiladi
+  // (Bu qism matching engine orqali amalga oshiriladi)
+  // Avval WebSocket orqali ulanamiz — heartbeat boshlaydi
+  connectWebSocket('driver');
+
+  // So'ngra yo'lovchilarni qidirish
+  const res = await apiGet('/api/trips/searching');
+  if (res.ok && res.trips && res.trips.length > 0) {
+    showRealMatches(res.trips);
+  }
+
+  announce(); // UI ni yangilash (mavjud funksiya)
+}
+
+function showRealMatches(trips) {
+  const list = trips.slice(0, 5);
+  document.getElementById('d-match-cards').innerHTML = list.map(t => `
+    <div class="card" id="tc${t.id}" style="margin-bottom:9px">
+      <div class="card-hd"><div class="card-title">${t.name || 'Yo\'lovchi'}</div><div class="badge bw">KUTMOQDA</div></div>
+      <div class="row"><span class="ico">📞</span><strong>${t.phone || '—'}</strong></div>
+      <div class="row"><span class="ico">💺</span>${t.seat_pref === 'front' ? '🪑 Oldi' : '💺 Orqa'}</div>
+      <div class="row"><span class="ico">📍</span>${t.p_addr || 'Manzil ko\'rsatilmagan'}</div>
+      <div class="btns">
+        <button class="btn btn-g" onclick="acceptTripApi(${t.id})">✅ Qabul</button>
+        <button class="btn btn-r" onclick="rejP(${t.id})">❌ Rad</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('d-matched').style.display = 'block';
+  notif('i', `🎯 ${list.length} ta yo\'lovchi topildi!`, 'Har birini ko\'rib chiqing');
+}
+
+async function acceptTripApi(tripId) {
+  if (!USER_ID) return;
+  const res = await apiPost('/api/accept-trip', {
+    driver_id: USER_ID,
+    trip_id: tripId
+  });
+  if (res.ok) {
+    const c = document.getElementById('tc' + tripId);
+    if (c) {
+      c.style.opacity = '.5'; c.style.pointerEvents = 'none';
+      c.querySelector('.btns').innerHTML = '<span style="color:var(--green);font-size:13px;font-weight:700">✅ Qabul — aloqa qiling</span>';
+    }
+    notif('s', '✅ Qabul qilindi', 'Yo\'lovchiga xabar yuborildi');
+  } else {
+    notif('w', '❌ ' + (res.error || 'Xato'), '');
+  }
+}
+
+async function submitRatingReal() {
+  if (!S.star) { notif('w', 'Yulduzcha tanlang', '1 dan 5 gacha'); return; }
+  if (S.currentTrip) {
+    await apiPost('/api/rate', {
+      trip_id: S.currentTrip.id,
+      rating: S.star,
+      comment: document.getElementById('r-comment').value
+    });
+  }
+  closeM('m-rating');
+  S.star = 0;
+  document.querySelectorAll('.rstar').forEach(el => el.classList.remove('lit'));
+  document.getElementById('r-comment').value = '';
+  notif('s', '⭐ Rahmat!', 'Bahoyingiz qabul qilindi');
+}
+
+async function confirmFinishReal() {
+  if (S.currentTrip && USER_ID) {
+    await apiPost('/api/trip-status', {
+      trip_id: S.currentTrip.id,
+      status: 'completed',
+      driver_id: USER_ID
+    });
+  }
+  stopHeartbeat();
+  if (ws) { ws.close(); ws = null; }
+  S.currentTrip = null;
+  closeM('m-finish');
+  S.d.active = false;
+  document.getElementById('d-active').style.display = 'none';
+  document.getElementById('d-form').style.display = 'block';
+  document.getElementById('d-matched').style.display = 'none';
+  notif('s', '🏁 Safar yakunlandi!', 'Yo\'lovchilarga baho so\'ralmoqda...');
+  setTimeout(() => openM('m-rating'), 1200);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CLAUDE — State va mantiq
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const S={
@@ -623,7 +993,8 @@ const S={
   p:{ dir:'at', pos:'front', cnt:1, time:'now', step:1, active:false },
   star:0, delay:5, grp:1,
   bl:['Jamshid T.'],
-  etaTmr:null
+  etaTmr:null,
+  currentTrip: null
 };
 const DIRS={ at:'Andijon → Toshkent', ta:'Toshkent → Andijon' };
 
@@ -785,14 +1156,7 @@ function openFinish(){
   document.getElementById('f-earn').textContent=(S.d.seats*120000).toLocaleString()+' so\'m';
   openM('m-finish');
 }
-function confirmFinish(){
-  closeM('m-finish'); S.d.active=false;
-  document.getElementById('d-active').style.display='none';
-  document.getElementById('d-form').style.display='block';
-  document.getElementById('d-matched').style.display='none';
-  notif('s','🏁 Safar yakunlandi!','Yo\'lovchilarga baho so\'ralmoqda...');
-  setTimeout(()=>openM('m-rating'),1200);
-}
+function confirmFinish(){ confirmFinishReal(); }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CHATGPT — Yo'lovchi forma (animatsiyali)
@@ -891,13 +1255,7 @@ function selStar(n){
   S.star=n;
   document.querySelectorAll('.rstar').forEach((el,i)=>el.classList.toggle('lit',i<n));
 }
-function submitRating(){
-  if(!S.star){notif('w','Yulduzcha tanlang','1 dan 5 gacha');return}
-  closeM('m-rating'); S.star=0;
-  document.querySelectorAll('.rstar').forEach(el=>el.classList.remove('lit'));
-  document.getElementById('r-comment').value='';
-  notif('s','⭐ Rahmat!','Bahoyingiz qabul qilindi');
-}
+function submitRating(){ submitRatingReal(); }
 function openDelay(){openM('m-delay')}
 function selDelay(n,btn){
   S.delay=n;
@@ -937,8 +1295,30 @@ function toggleLang(){
   notif('i',S.lang==='uz'?'🇺🇿 O\'zbek tili':'🇷🇺 Русский язык','');
 }
 
-// Kirish xabari
-setTimeout(()=>notif('i','👋 Xush kelibsiz!','AndTaxi — Claude + Gemini + ChatGPT'),800);
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ILOVA YUKLANGANDA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// sendReq va cancelReq — haqiqiy API ga ulash
+function sendReq() { sendReqReal(); }
+function cancelReq() { cancelReqReal(); }
+function announce() {
+  // UI yangilash
+  S.d.active=true;
+  const pr=document.getElementById('d-price')?.value;
+  document.getElementById('d-act-dir').textContent=DIRS[S.d.dir];
+  document.getElementById('d-act-time').textContent=S.d.time==='now'?'Hozir':document.getElementById('d-hour')?.value;
+  document.getElementById('d-act-seats').textContent=S.d.seats+' ta bo\'sh o\'rin';
+  document.getElementById('d-act-price').textContent=pr?parseInt(pr).toLocaleString()+' so\'m':'Ko\'rsatilmagan';
+  document.getElementById('d-active').style.display='block';
+  document.getElementById('d-form').style.display='none';
+  dStep(1);
+  notif('s','🚀 E\'lon qilindi!','Mos yo\'lovchilar qidirilmoqda...');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadUserData();
+  setTimeout(()=>notif('i','👋 Xush kelibsiz!','AndTaxi — Andijon ↔ Toshkent'),800);
+});
 </script>
 </body>
 </html>
