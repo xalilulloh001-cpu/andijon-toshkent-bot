@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>AndTaxi</title>
+<title>AndTaxi — Andijon ↔ Toshkent</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -95,7 +95,100 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 #toast.err{background:#3a1a1a;color:var(--red);border-color:#f4433666}
 .leaflet-control-attribution{font-size:9px!important;background:rgba(0,0,0,.5)!important}
 .leaflet-control-zoom{display:none}
+
+/* ═══ ZAMONAVIY DIZAYN QO'SHIMCHALARI ═══ */
+:root {
+  --accent:#4f8ef7;
+  --warn:#f59e0b;
+  --shadow:0 4px 24px rgba(0,0,0,.4);
+}
+
+/* Gradient header */
+.hdr { background:linear-gradient(135deg,#0f1117 0%,#1a1a2e 100%); }
+.hdr h1 { background:linear-gradient(90deg,var(--gold),var(--orange),#ff4081);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  font-size:24px; letter-spacing:.5px; }
+
+/* Kartalar */
+.card { box-shadow:var(--shadow); transition:transform .15s; }
+.card:active { transform:scale(.99); }
+
+/* Tugmalar yangilangan */
+.btn { border-radius:16px; letter-spacing:.3px;
+  box-shadow:0 4px 14px rgba(0,0,0,.3); }
+.btn-gold { background:linear-gradient(135deg,var(--gold) 0%,var(--orange) 100%); }
+.btn-dark { background:linear-gradient(135deg,#1e2040 0%,#2a2a4a 100%); }
+
+/* Manzil qutisi */
+.addr-box { background:linear-gradient(135deg,#1a1a2e,#1e2040);
+  border:1px solid var(--accent); border-radius:14px;
+  padding:12px 16px; margin-bottom:12px;
+  display:flex; align-items:center; gap:10px; }
+.addr-dot { width:10px; height:10px; border-radius:50%;
+  background:var(--green); box-shadow:0 0 8px var(--green); flex-shrink:0; }
+.addr-txt { font-size:13px; color:var(--text); line-height:1.4; }
+.addr-txt.set { color:#7dd3fc; }
+
+/* Status kartasi */
+.status-box { text-align:center; padding:28px 16px; }
+.status-ico { font-size:52px; margin-bottom:12px; }
+.status-ico.pulse { animation:pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
+.status-ttl { font-size:18px; font-weight:800; margin-bottom:6px; }
+.status-sub { font-size:13px; color:var(--muted); }
+
+/* Yo'lovchi topshiriq satrlari */
+.sum-row { display:flex; justify-content:space-between;
+  padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.sum-row:last-child { border:none; }
+.sum-k { color:var(--muted); }
+.sum-v { font-weight:700; color:var(--text); }
+
+/* Haydovchi info kartasi */
+.drv-info { display:flex; align-items:center; gap:14px; padding:12px 0; }
+.drv-av { width:52px; height:52px; border-radius:50%;
+  background:linear-gradient(135deg,var(--gold),var(--orange));
+  display:flex; align-items:center; justify-content:center;
+  font-size:24px; flex-shrink:0; }
+.drv-nm { font-size:16px; font-weight:800; }
+.drv-cr { font-size:12px; color:var(--muted); margin-top:2px; }
+
+/* Yulduz reytingi */
+.stars-wrap { display:flex; justify-content:center; gap:12px; margin:20px 0; }
+.star-btn { font-size:36px; cursor:pointer; transition:transform .15s;
+  opacity:.3; filter:grayscale(1); }
+.star-btn.active { opacity:1; filter:none; transform:scale(1.2); }
+
+/* Rol tanlash */
+.role-card { background:var(--card); border:2px solid var(--border);
+  border-radius:20px; padding:20px; margin-bottom:12px;
+  text-align:center; cursor:pointer; transition:all .2s; }
+.role-card:hover, .role-card.selected {
+  border-color:var(--gold); background:#1e1e3f; }
+.role-icon { font-size:44px; margin-bottom:10px; }
+.role-title { font-size:17px; font-weight:800; }
+.role-desc { font-size:12px; color:var(--muted); margin-top:4px; }
+
+/* Kirish animatsiyasi */
+@keyframes slideUp {
+  from { transform:translateY(20px); opacity:0; }
+  to   { transform:translateY(0);    opacity:1; }
+}
+.page.active { animation:slideUp .3s ease; }
+
+/* Toast */
+#toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:#23234a; color:#fff; padding:12px 24px; border-radius:24px;
+  font-size:13px; font-weight:600; z-index:9999;
+  opacity:0; pointer-events:none; transition:opacity .3s;
+  box-shadow:var(--shadow); white-space:nowrap; }
+#toast.show { opacity:1; }
+#toast.err { background:var(--red); }
+#toast.ok { background:var(--green); }
+/* ═══════════════════════════════════════ */
 </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 
@@ -106,26 +199,25 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <!-- P0: ROL -->
 <div class="page active" id="p0">
-  <div style="text-align:center;padding:20px 0 8px">
-    <div style="font-size:52px">🚕</div>
-    <h2 style="font-size:20px;margin:8px 0 4px">Xush kelibsiz!</h2>
-    <p class="hint">Quyidan birini tanlang</p>
+  <div style="text-align:center;padding:32px 0 16px">
+    <div style="font-size:60px;margin-bottom:10px">🚕</div>
+    <h1 style="font-size:28px;font-weight:900;background:linear-gradient(90deg,#f5c518,#ff6b35);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:6px">AndTaxi</h1>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:4px">Andijon ↔ Toshkent</p>
+    <p style="color:#4f8ef7;font-size:12px">Ishonchli va qulay safar 🌟</p>
   </div>
-  <div class="role-grid">
-    <div class="role-card" id="dCard" onclick="pickRole('driver')">
-      <div class="ic">🚗</div>
-      <div class="lb">Haydovchi</div>
-      <div class="sl">Yo'lovchi toping</div>
-    </div>
-    <div class="role-card" id="pCard" onclick="pickRole('passenger')">
-      <div class="ic">👤</div>
-      <div class="lb">Yo'lovchi</div>
-      <div class="sl">Taksi chaqiring</div>
-    </div>
+  <div style="height:1px;background:var(--border);margin:16px 0 20px"></div>
+  <p style="color:var(--muted);font-size:12px;text-align:center;margin-bottom:14px;text-transform:uppercase;letter-spacing:.5px">Rolingizni tanlang</p>
+  <div class="role-card" id="pCard" onclick="pickRole('passenger')" style="margin-bottom:12px">
+    <div class="role-icon">👤</div>
+    <div class="role-title">Men yo'lovchiman</div>
+    <div class="role-desc">Taksi chaqirish · Haydovchi tanlash</div>
   </div>
-  <button class="btn btn-gold" id="roleBtn" onclick="goPage('p1')" disabled>Davom etish →</button>
+  <div class="role-card" id="dCard" onclick="pickRole('driver')">
+    <div class="role-icon">🚗</div>
+    <div class="role-title">Men haydovchiman</div>
+    <div class="role-desc">Yo'lovchi olish · Daromad qilish</div>
+  </div>
 </div>
-
 <!-- P1: TELEFON -->
 <div class="page" id="p1">
   <div class="steps">
@@ -243,15 +335,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <!-- P5: YO'LOVCHI BOSH -->
 <div class="page" id="p5">
-  <div class="card" style="text-align:center;padding:20px">
-    <div style="font-size:48px;margin-bottom:8px">👋</div>
-    <h2 style="font-size:18px;margin-bottom:4px">Salom, <span id="p5name"></span>!</h2>
-    <p style="font-size:12px;color:var(--muted)">Yo'lovchi · <span id="p5phone" class="gold"></span></p>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:16px;background:linear-gradient(135deg,#1a1a2e,#1e2040);border-radius:18px;border:1px solid var(--border)">
+    <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--orange));display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">👤</div>
+    <div>
+      <div style="font-size:16px;font-weight:800" id="p5name">—</div>
+      <div style="font-size:12px;color:var(--muted)" id="p5phone">—</div>
+    </div>
+    <div style="margin-left:auto;font-size:11px;color:var(--green);font-weight:700;background:rgba(76,175,80,.15);padding:4px 10px;border-radius:20px">● Faol</div>
   </div>
   <button class="btn btn-gold" onclick="goPage('p6')">🚕 Taksi chaqirish</button>
-  <button class="btn btn-dark" onclick="doChangeRole()">Rolni o'zgartirish</button>
+  <button class="btn btn-dark" onclick="doChangeRole()">🔄 Haydovchiga o'tish</button>
 </div>
-
 <!-- P6: TAKSI JOYLASHUV -->
 <div class="page" id="p6">
   <h2 style="font-size:16px;font-weight:700;margin-bottom:14px">📍 Joylashuvingizni belgilang</h2>
@@ -281,24 +375,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     <div class="sum-row"><span class="sum-k">📍 Manzil</span><span class="sum-v" id="waitAddr">—</span></div>
     <div class="sum-row"><span class="sum-k">⏱️ Kutildi</span><span class="sum-v" id="waitTime">0:00</span></div>
   </div>
-  <button class="btn btn-red" onclick="doCancel()">Bekor qilish</button>
+  <button class="btn btn-dark" onclick="doCancel()">❌ Bekor qilish</button>
 </div>
-
 <!-- P8: HAYDOVCHI TOPILDI -->
 <div class="page" id="p8">
-  <div class="status-box">
-    <div class="status-ico">✅</div>
-    <div class="status-ttl">Haydovchi topildi!</div>
-    <div class="status-sub">Haydovchi yo'lda</div>
+  <div class="status-box" style="padding:20px 0 12px">
+    <div style="font-size:52px;margin-bottom:8px">✅</div>
+    <div class="status-ttl" style="color:#4caf50">Haydovchi topildi!</div>
+    <div class="status-sub">Tez orada yetib keladi</div>
   </div>
   <div class="card">
-    <div class="sum-row"><span class="sum-k">👤 Haydovchi</span><span class="sum-v" id="drvName">—</span></div>
-    <div class="sum-row"><span class="sum-k">🚗 Mashina</span><span class="sum-v" id="drvCar">—</span></div>
-    <div class="sum-row"><span class="sum-k">📱 Telefon</span><span class="sum-v" id="drvPhone">—</span></div>
+    <div class="drv-info">
+      <div class="drv-av">🚗</div>
+      <div>
+        <div class="drv-nm" id="p8drvName">—</div>
+        <div class="drv-cr" id="p8drvCar">—</div>
+      </div>
+    </div>
+    <div style="height:1px;background:var(--border);margin:10px 0"></div>
+    <div class="sum-row"><span class="sum-k">📞 Telefon</span><span class="sum-v" id="p8drvPhone">—</span></div>
+    <div class="sum-row"><span class="sum-k">📍 Sizning manzilingiz</span><span class="sum-v" id="p8pAddr">—</span></div>
   </div>
-  <button class="btn btn-red" onclick="doCancel()">Bekor qilish</button>
+  <button class="btn btn-dark" onclick="doCancel()">❌ Bekor qilish</button>
 </div>
-
 <!-- P9: YO'LDA -->
 <div class="page" id="p9">
   <div class="status-box">
@@ -338,17 +437,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 
 <!-- P11: HAYDOVCHI BOSH -->
 <div class="page" id="p11">
-  <div class="card" style="text-align:center;padding:20px">
-    <div style="font-size:48px;margin-bottom:8px">🚗</div>
-    <h2 style="font-size:18px;margin-bottom:4px">Salom, <span id="p11name"></span>!</h2>
-    <p style="font-size:12px;color:var(--muted)">Haydovchi · <span id="p11phone" class="gold"></span></p>
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:16px;background:linear-gradient(135deg,#1a1a2e,#1e2040);border-radius:18px;border:1px solid var(--border)">
+    <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#4f8ef7,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🚗</div>
+    <div>
+      <div style="font-size:16px;font-weight:800" id="p11name">—</div>
+      <div style="font-size:12px;color:var(--muted)" id="p11car">—</div>
+    </div>
+    <div style="margin-left:auto;font-size:11px;color:var(--green);font-weight:700;background:rgba(76,175,80,.15);padding:4px 10px;border-radius:20px">● Faol</div>
   </div>
-  <button class="btn btn-gold" onclick="loadTrips()">🔄 Yo'lovchilarni yangilash</button>
-  <div id="tripsList"></div>
-  <button class="btn btn-dark" onclick="doChangeRole()">Rolni o'zgartirish</button>
+  <div class="card">
+    <div class="card-ttl">📋 Kelayotgan so'rovlar</div>
+    <div id="tripsList"><p style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0">So'rovlar yuklanmoqda...</p></div>
+    <button class="btn btn-dark" style="margin-top:8px" onclick="loadTrips()">🔄 Yangilash</button>
+  </div>
+  <button class="btn btn-dark" onclick="doChangeRole()">🔄 Yo'lovchiga o'tish</button>
 </div>
-
-<!-- P12: HAYDOVCHI TRIP -->
+!-- P12: HAYDOVCHI TRIP -->
 <div class="page" id="p12">
   <div class="status-box">
     <div class="status-ico" id="drvIco">🚗</div>
@@ -806,9 +910,19 @@ async function checkStatus() {
 }
 
 function fillDriverInfo(trip) {
-  document.getElementById("drvName").textContent  = trip.driver_name  || "Haydovchi";
-  document.getElementById("drvCar").textContent   = (trip.car_model || "") + " " + (trip.car_plate || "");
-  document.getElementById("drvPhone").textContent = trip.driver_phone || "—";
+  var drvName = trip.driver_name || "Haydovchi";
+  var drvPhone = trip.driver_phone || "—";
+  var drvCar = (trip.car_model || "") + (trip.car_plate ? " · " + trip.car_plate : "");
+  var addr = trip.p_addr || S.addr || "—";
+  // P8 elementlarini to'ldirish
+  var nm = document.getElementById("p8drvName");
+  var ph = document.getElementById("p8drvPhone");
+  var cr = document.getElementById("p8drvCar");
+  var ad = document.getElementById("p8pAddr");
+  if (nm) nm.textContent = drvName;
+  if (ph) ph.textContent = drvPhone;
+  if (cr) cr.textContent = drvCar || "Mashina ma'lumoti yo'q";
+  if (ad) ad.textContent = addr;
 }
 
 // ── TAYMERLAR ───────────────────────────────────────────────────────
@@ -870,8 +984,10 @@ async function doRate() {
 
 // ── HAYDOVCHI BOSH ──────────────────────────────────────────────────
 function showDriverHome() {
-  document.getElementById("p11name").textContent  = USER_NAME;
-  document.getElementById("p11phone").textContent = S.phone || "";
+  var nm = document.getElementById("p11name");
+  var cr = document.getElementById("p11car");
+  if (nm) nm.textContent = USER_NAME || "Haydovchi";
+  if (cr) cr.textContent = (S.carModel || "") + (S.carPlate ? " · " + S.carPlate : "");
   goPage("p11");
   loadTrips();
 }
@@ -983,9 +1099,9 @@ async function apiGet(path) {
 function showToast(msg, isErr) {
   var el = document.getElementById("toast");
   el.textContent = msg;
-  el.className = "toast show" + (isErr ? " err" : "");
+  el.className = "toast show" + (isErr ? " err" : " ok");
   clearTimeout(el._t);
-  el._t = setTimeout(function() { el.classList.remove("show"); }, 2500);
+  el._t = setTimeout(function() { el.className = "toast"; }, 2800);
 }
 </script>
 </body>
