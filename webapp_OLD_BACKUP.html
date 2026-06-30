@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AndTaxi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f0f1a;--card:#1a1a2e;--border:#2a2a4a;
+  --gold:#f5c518;--orange:#ff6b35;--green:#4caf50;
+  --red:#f44336;--text:#fff;--muted:#888;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.hdr{background:linear-gradient(135deg,#1a1a2e,#16213e);padding:16px 16px 12px;text-align:center;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.hdr h1{font-size:22px;font-weight:800;background:linear-gradient(90deg,var(--gold),var(--orange));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr p{font-size:11px;color:var(--muted);margin-top:2px}
+.page{padding:16px;padding-bottom:36px;display:none}
+.page.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px}
+.card-ttl{font-size:11px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px}
+.btn{width:100%;padding:14px;border:none;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;transition:transform .15s}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
+.btn-gold{background:linear-gradient(135deg,var(--gold),var(--orange));color:#000}
+.btn-dark{background:#2a2a4a;color:#fff}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.steps{display:flex;justify-content:space-between;margin-bottom:20px;position:relative}
+.steps::before{content:"";position:absolute;top:15px;left:16px;right:16px;height:2px;background:var(--border);z-index:0}
+.step{display:flex;flex-direction:column;align-items:center;gap:5px;z-index:1}
+.step-c{width:30px;height:30px;border-radius:50%;background:var(--border);border:2px solid #3a3a5a;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.step.done .step-c{background:var(--green);border-color:var(--green)}
+.step.active .step-c{background:var(--gold);border-color:var(--gold);color:#000}
+.step-l{font-size:10px;color:var(--muted)}
+.step.active .step-l{color:var(--gold)}
+.step.done .step-l{color:var(--green)}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+.role-card{background:var(--card);border:2px solid var(--border);border-radius:16px;padding:20px 10px;text-align:center;cursor:pointer;transition:all .25s;-webkit-user-select:none;user-select:none}
+.role-card.sel{border-color:var(--gold);background:#2a2a1a}
+.role-card .ic{font-size:36px;margin-bottom:8px}
+.role-card .lb{font-size:14px;font-weight:700}
+.role-card .sl{font-size:11px;color:var(--muted);margin-top:3px}
+.inp-grp{margin-bottom:12px}
+.inp-lb{font-size:12px;color:var(--muted);margin-bottom:5px;display:block}
+.inp{width:100%;padding:13px 14px;background:#2a2a4a;border:1px solid #3a3a5a;border-radius:12px;color:#fff;font-size:16px;outline:none;transition:border .2s}
+.inp:focus{border-color:var(--gold)}
+.inp::placeholder{color:#555}
+.seat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+.seat-card{background:var(--card);border:2px solid var(--border);border-radius:14px;padding:16px 10px;text-align:center;cursor:pointer;transition:all .25s}
+.seat-card.sel{border-color:var(--gold);background:#2a2a1a}
+.seat-card .si{font-size:28px;margin-bottom:6px}
+.seat-card .sn{font-size:13px;font-weight:700}
+.seat-card .ss{font-size:11px;color:var(--muted);margin-top:2px}
+.num-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.num-btn{background:var(--card);border:2px solid var(--border);border-radius:12px;padding:14px 0;text-align:center;font-size:20px;font-weight:800;cursor:pointer;transition:all .25s}
+.num-btn.sel{border-color:var(--gold);background:#2a2a1a;color:var(--gold)}
+#mapWrap{position:relative;width:100%;height:300px;border-radius:16px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px}
+#map{width:100%;height:100%}
+#pin-wrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:400;pointer-events:none;transition:transform .15s}
+#pin-wrap.drag{transform:translate(-50%,-115%)}
+#pin-ic{width:40px;height:40px;background:linear-gradient(135deg,var(--gold),var(--orange));border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 16px rgba(245,197,24,.5);display:flex;align-items:center;justify-content:center;position:relative}
+#pin-ic::after{content:"";position:absolute;width:12px;height:12px;background:var(--bg);border-radius:50%}
+#pin-sh{width:13px;height:5px;background:rgba(0,0,0,.4);border-radius:50%;margin:3px auto 0;filter:blur(2px);transition:all .15s}
+#pin-wrap.drag #pin-sh{width:8px;opacity:.3;margin-top:7px}
+#gps-btn{position:absolute;right:12px;bottom:12px;z-index:410;width:44px;height:44px;background:var(--card);border:1px solid var(--border);border-radius:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px}
+#coord-b{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:410;background:rgba(10,10,20,.85);border:1px solid var(--border);border-radius:16px;padding:4px 12px;font-size:11px;color:#aaa;pointer-events:none;white-space:nowrap;max-width:90%}
+.addr-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;min-height:50px}
+.addr-dot{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0}
+.addr-txt{flex:1;font-size:13px;line-height:1.3;color:var(--muted)}
+.addr-txt.set{color:#fff}
+.sum-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.sum-row:last-child{border:none}
+.sum-k{font-size:12px;color:var(--muted)}
+.sum-v{font-size:13px;font-weight:600;text-align:right;max-width:60%}
+.status-box{text-align:center;padding:24px 16px}
+.status-ico{font-size:56px;margin-bottom:12px}
+.status-ttl{font-size:20px;font-weight:800;margin-bottom:6px}
+.status-sub{font-size:13px;color:var(--muted);line-height:1.5}
+.pulse{animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.stars{display:flex;justify-content:center;gap:12px;margin:16px 0}
+.star{font-size:36px;cursor:pointer;transition:transform .15s;filter:grayscale(1);opacity:.5}
+.star.lit{filter:none;opacity:1;transform:scale(1.1)}
+.trip-item{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.trip-item h3{font-size:14px;font-weight:700;margin-bottom:4px}
+.trip-item p{font-size:12px;color:var(--muted);margin-bottom:2px}
+.hint{font-size:12px;color:var(--muted);text-align:center;margin-bottom:12px;line-height:1.4}
+.gold{color:var(--gold)}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:999;background:#1a3a1a;color:var(--green);border:1px solid #4caf5066;border-radius:20px;padding:9px 18px;font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+#toast.err{background:#3a1a1a;color:var(--red);border-color:#f4433666}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(0,0,0,.5)!important}
+.leaflet-control-zoom{display:none}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>🚕 AndTaxi</h1>
+  <p id="hdrSub">Andijon → Toshkent</p>
+</div>
+
+<!-- P0: ROL -->
+<div class="page active" id="p0">
+  <div style="text-align:center;padding:20px 0 8px">
+    <div style="font-size:52px">🚕</div>
+    <h2 style="font-size:20px;margin:8px 0 4px">Xush kelibsiz!</h2>
+    <p class="hint">Quyidan birini tanlang</p>
+  </div>
+  <div class="role-grid">
+    <div class="role-card" id="dCard" onclick="pickRole('driver')">
+      <div class="ic">🚗</div>
+      <div class="lb">Haydovchi</div>
+      <div class="sl">Yo'lovchi toping</div>
+    </div>
+    <div class="role-card" id="pCard" onclick="pickRole('passenger')">
+      <div class="ic">👤</div>
+      <div class="lb">Yo'lovchi</div>
+      <div class="sl">Taksi chaqiring</div>
+    </div>
+  </div>
+  <button class="btn btn-gold" id="roleBtn" onclick="goPage('p1')" disabled>Davom etish →</button>
+</div>
+
+<!-- P1: TELEFON -->
+<div class="page" id="p1">
+  <div class="steps">
+    <div class="step active"><div class="step-c">1</div><div class="step-l">Raqam</div></div>
+    <div class="step"><div class="step-c">2</div><div class="step-l">Joylashuv</div></div>
+    <div class="step"><div class="step-c">3</div><div class="step-l">O'rindiq</div></div>
+    <div class="step"><div class="step-c">4</div><div class="step-l">Tayyor</div></div>
+  </div>
+  <div class="card">
+    <div class="card-ttl">📱 Telefon raqam</div>
+    <p class="hint" style="text-align:left;margin-bottom:12px">Bir marta kiriting — keyingi safar so'ralmaydi.</p>
+    <div class="inp-grp">
+      <label class="inp-lb">O'zbekiston raqami</label>
+      <input class="inp" id="phoneInp" type="tel" placeholder="+998 90 123 45 67" maxlength="13" oninput="fmtPhone(this)">
+    </div>
+    <button class="btn btn-gold" onclick="confirmPhone()">Davom etish →</button>
+  </div>
+  <button class="btn btn-dark" onclick="goPage('p0')">← Orqaga</button>
+</div>
+
+<!-- P2: JOYLASHUV -->
+<div class="page" id="p2">
+  <div class="steps">
+    <div class="step done"><div class="step-c">✓</div><div class="step-l">Raqam</div></div>
+    <div class="step active"><div class="step-c">2</div><div class="step-l">Joylashuv</div></div>
+    <div class="step"><div class="step-c">3</div><div class="step-l">O'rindiq</div></div>
+    <div class="step"><div class="step-c">4</div><div class="step-l">Tayyor</div></div>
+  </div>
+  <div style="background:linear-gradient(135deg,#1a2a1a,var(--card));border:1px solid #4caf5044;border-radius:14px;padding:12px 14px;margin-bottom:14px;text-align:center;font-size:14px;font-weight:700">
+    📍 Turgan joyingizni belgilang
+  </div>
+  <div id="mapWrap">
+    <div id="map"></div>
+    <div id="pin-wrap"><div id="pin-ic"></div><div id="pin-sh"></div></div>
+    <div id="coord-b">Joylashuv aniqlanmoqda...</div>
+    <button id="gps-btn" onclick="gotoGPS()">📍</button>
+  </div>
+  <div class="addr-box">
+    <div class="addr-dot"></div>
+    <div class="addr-txt" id="addrTxt">Xaritani suring yoki 📍 bosing</div>
+  </div>
+  <p class="hint">Ko'cha boshi yoki qulay joy — aniq uy kerak emas.</p>
+  <button class="btn btn-gold" id="locBtn" onclick="goPage('p3')" disabled>Davom etish →</button>
+  <button class="btn btn-dark" onclick="goPage('p1')">← Orqaga</button>
+</div>
+
+<!-- P3: O'RINDIQ -->
+<div class="page" id="p3">
+  <div class="steps">
+    <div class="step done"><div class="step-c">✓</div><div class="step-l">Raqam</div></div>
+    <div class="step done"><div class="step-c">✓</div><div class="step-l">Joylashuv</div></div>
+    <div class="step active"><div class="step-c">3</div><div class="step-l">O'rindiq</div></div>
+    <div class="step"><div class="step-c">4</div><div class="step-l">Tayyor</div></div>
+  </div>
+  <div id="passSeat">
+    <div class="card">
+      <div class="card-ttl">🪑 O'rindiq tanlang</div>
+      <div class="seat-grid">
+        <div class="seat-card" id="frontCard" onclick="setSeatPref('front')">
+          <div class="si">⬆️</div><div class="sn">Old o'rindiq</div><div class="ss">Haydovchi yonida</div>
+        </div>
+        <div class="seat-card" id="backCard" onclick="setSeatPref('back')">
+          <div class="si">⬇️</div><div class="sn">Orqa o'rindiq</div><div class="ss">Orqada o'tirish</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="driverSeat" style="display:none">
+    <div class="card">
+      <div class="card-ttl">🚗 Bo'sh o'rindiqlar soni</div>
+      <div class="num-grid">
+        <div class="num-btn" id="sn1" onclick="setSeatCount(1)">1</div>
+        <div class="num-btn" id="sn2" onclick="setSeatCount(2)">2</div>
+        <div class="num-btn" id="sn3" onclick="setSeatCount(3)">3</div>
+        <div class="num-btn" id="sn4" onclick="setSeatCount(4)">4</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-ttl">🚘 Mashina (ixtiyoriy)</div>
+      <div class="inp-grp">
+        <label class="inp-lb">Mashina modeli</label>
+        <input class="inp" id="carModel" placeholder="Cobalt, Malibu, Nexia...">
+      </div>
+      <div class="inp-grp" style="margin-bottom:0">
+        <label class="inp-lb">Davlat raqami</label>
+        <input class="inp" id="carPlate" placeholder="01A 123 BC">
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-gold" id="seatBtn" onclick="goPage('p4')" disabled>Davom etish →</button>
+  <button class="btn btn-dark" onclick="goPage('p2')">← Orqaga</button>
+</div>
+
+<!-- P4: TASDIQLASH -->
+<div class="page" id="p4">
+  <div class="steps">
+    <div class="step done"><div class="step-c">✓</div><div class="step-l">Raqam</div></div>
+    <div class="step done"><div class="step-c">✓</div><div class="step-l">Joylashuv</div></div>
+    <div class="step done"><div class="step-c">✓</div><div class="step-l">O'rindiq</div></div>
+    <div class="step active"><div class="step-c">4</div><div class="step-l">Tayyor</div></div>
+  </div>
+  <div style="text-align:center;padding:16px 0">
+    <div style="font-size:52px">🎉</div>
+    <h2 style="font-size:20px;margin:8px 0 4px">Ma'lumotlarni tasdiqlang</h2>
+  </div>
+  <div class="card">
+    <div class="sum-row"><span class="sum-k">📱 Raqam</span><span class="sum-v gold" id="sumPhone">—</span></div>
+    <div class="sum-row"><span class="sum-k">🏷️ Rol</span><span class="sum-v" id="sumRole">—</span></div>
+    <div class="sum-row"><span class="sum-k">📍 Joylashuv</span><span class="sum-v" id="sumAddr">—</span></div>
+    <div class="sum-row"><span class="sum-k">🪑 O'rindiq</span><span class="sum-v" id="sumSeat">—</span></div>
+  </div>
+  <button class="btn btn-gold" id="regBtn" onclick="doRegister()">🚀 Ro'yxatdan o'tish!</button>
+  <button class="btn btn-dark" onclick="goPage('p3')">← Orqaga</button>
+</div>
+
+<!-- P5: YO'LOVCHI BOSH -->
+<div class="page" id="p5">
+  <div class="card" style="text-align:center;padding:20px">
+    <div style="font-size:48px;margin-bottom:8px">👋</div>
+    <h2 style="font-size:18px;margin-bottom:4px">Salom, <span id="p5name"></span>!</h2>
+    <p style="font-size:12px;color:var(--muted)">Yo'lovchi · <span id="p5phone" class="gold"></span></p>
+  </div>
+  <button class="btn btn-gold" onclick="goPage('p6')">🚕 Taksi chaqirish</button>
+  <button class="btn btn-dark" onclick="doChangeRole()">Rolni o'zgartirish</button>
+</div>
+
+<!-- P6: TAKSI JOYLASHUV -->
+<div class="page" id="p6">
+  <h2 style="font-size:16px;font-weight:700;margin-bottom:14px">📍 Joylashuvingizni belgilang</h2>
+  <div id="map2Wrap" style="position:relative;width:100%;height:300px;border-radius:16px;overflow:hidden;border:1px solid var(--border);margin-bottom:12px">
+    <div id="map2" style="width:100%;height:100%"></div>
+    <div id="pin2" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);z-index:400;pointer-events:none">
+      <div style="width:36px;height:36px;background:linear-gradient(135deg,var(--gold),var(--orange));border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 14px rgba(245,197,24,.5)"></div>
+    </div>
+    <button id="gps2-btn" style="position:absolute;right:12px;bottom:12px;z-index:410;width:44px;height:44px;background:var(--card);border:1px solid var(--border);border-radius:13px;cursor:pointer;font-size:20px" onclick="gotoGPS2()">📍</button>
+  </div>
+  <div class="addr-box">
+    <div class="addr-dot"></div>
+    <div class="addr-txt" id="addrTxt2">Joylashuv aniqlanmoqda...</div>
+  </div>
+  <button class="btn btn-gold" id="callBtn" onclick="doCallTaxi()" disabled>🚕 Taksi chaqirish!</button>
+  <button class="btn btn-dark" onclick="goPage('p5')">← Orqaga</button>
+</div>
+
+<!-- P7: KUTISH -->
+<div class="page" id="p7">
+  <div class="status-box">
+    <div class="status-ico pulse">🔍</div>
+    <div class="status-ttl">Haydovchi qidirilmoqda...</div>
+    <div class="status-sub">Topilgach avtomatik ko'rinadi</div>
+  </div>
+  <div class="card">
+    <div class="sum-row"><span class="sum-k">📍 Manzil</span><span class="sum-v" id="waitAddr">—</span></div>
+    <div class="sum-row"><span class="sum-k">⏱️ Kutildi</span><span class="sum-v" id="waitTime">0:00</span></div>
+  </div>
+  <button class="btn btn-red" onclick="doCancel()">Bekor qilish</button>
+</div>
+
+<!-- P8: HAYDOVCHI TOPILDI -->
+<div class="page" id="p8">
+  <div class="status-box">
+    <div class="status-ico">✅</div>
+    <div class="status-ttl">Haydovchi topildi!</div>
+    <div class="status-sub">Haydovchi yo'lda</div>
+  </div>
+  <div class="card">
+    <div class="sum-row"><span class="sum-k">👤 Haydovchi</span><span class="sum-v" id="drvName">—</span></div>
+    <div class="sum-row"><span class="sum-k">🚗 Mashina</span><span class="sum-v" id="drvCar">—</span></div>
+    <div class="sum-row"><span class="sum-k">📱 Telefon</span><span class="sum-v" id="drvPhone">—</span></div>
+  </div>
+  <button class="btn btn-red" onclick="doCancel()">Bekor qilish</button>
+</div>
+
+<!-- P9: YO'LDA -->
+<div class="page" id="p9">
+  <div class="status-box">
+    <div class="status-ico pulse">🚗</div>
+    <div class="status-ttl">Yo'ldasiz!</div>
+    <div class="status-sub">Yaxshi yo'l!</div>
+  </div>
+  <div class="card">
+    <div class="sum-row"><span class="sum-k">👤 Haydovchi</span><span class="sum-v" id="tripDrv">—</span></div>
+    <div class="sum-row"><span class="sum-k">⏱️ Yo'lda</span><span class="sum-v" id="tripTime">0:00</span></div>
+  </div>
+</div>
+
+<!-- P10: BAHO -->
+<div class="page" id="p10">
+  <div class="status-box">
+    <div class="status-ico">🎉</div>
+    <div class="status-ttl">Manzilga yetdingiz!</div>
+    <div class="status-sub">Haydovchiga baho bering</div>
+  </div>
+  <div class="card">
+    <div class="card-ttl">⭐ Baho</div>
+    <div class="stars">
+      <span class="star" onclick="setStar(1)">⭐</span>
+      <span class="star" onclick="setStar(2)">⭐</span>
+      <span class="star" onclick="setStar(3)">⭐</span>
+      <span class="star" onclick="setStar(4)">⭐</span>
+      <span class="star" onclick="setStar(5)">⭐</span>
+    </div>
+    <div class="inp-grp">
+      <label class="inp-lb">Izoh (ixtiyoriy)</label>
+      <input class="inp" id="rateComment" placeholder="Fikringiz...">
+    </div>
+    <button class="btn btn-gold" id="rateBtn" onclick="doRate()" disabled>Baholash</button>
+  </div>
+</div>
+
+<!-- P11: HAYDOVCHI BOSH -->
+<div class="page" id="p11">
+  <div class="card" style="text-align:center;padding:20px">
+    <div style="font-size:48px;margin-bottom:8px">🚗</div>
+    <h2 style="font-size:18px;margin-bottom:4px">Salom, <span id="p11name"></span>!</h2>
+    <p style="font-size:12px;color:var(--muted)">Haydovchi · <span id="p11phone" class="gold"></span></p>
+  </div>
+  <button class="btn btn-gold" onclick="loadTrips()">🔄 Yo'lovchilarni yangilash</button>
+  <div id="tripsList"></div>
+  <button class="btn btn-dark" onclick="doChangeRole()">Rolni o'zgartirish</button>
+</div>
+
+<!-- P12: HAYDOVCHI TRIP -->
+<div class="page" id="p12">
+  <div class="status-box">
+    <div class="status-ico" id="drvIco">🚗</div>
+    <div class="status-ttl" id="drvTtl">Trip</div>
+    <div class="status-sub" id="drvSub"></div>
+  </div>
+  <div class="card">
+    <div class="sum-row"><span class="sum-k">👤 Yo'lovchi</span><span class="sum-v" id="paxName">—</span></div>
+    <div class="sum-row"><span class="sum-k">📱 Telefon</span><span class="sum-v" id="paxPhone">—</span></div>
+    <div class="sum-row"><span class="sum-k">📍 Manzil</span><span class="sum-v" id="paxAddr">—</span></div>
+    <div class="sum-row"><span class="sum-k">🪑 O'rindiq</span><span class="sum-v" id="paxSeat">—</span></div>
+  </div>
+  <button class="btn btn-green" id="drvActBtn" onclick="driverAction()">Tripni boshlash</button>
+  <button class="btn btn-dark" onclick="goPage('p11')">← Orqaga</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+// ── SOZLAMALAR ──────────────────────────────────────────────────────
+var tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+var USER_ID   = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : 0;
+var USER_NAME = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? (tg.initDataUnsafe.user.first_name || "Do'st") : "Do'st";
+var API_URL   = "https://andijon-toshkent-bot2-production.up.railway.app";
+var ANDIJON   = [40.7831, 72.3442];
+
+// ── HOLAT ──────────────────────────────────────────────────────────
+var S = {
+  role: null,
+  phone: null,
+  loc: null,
+  addr: "",
+  seatPref: null,
+  seatCount: null,
+  carModel: "",
+  carPlate: "",
+  tripId: null,
+  tripStatus: null,
+  currentRating: 0,
+  activeDrvTrip: null
+};
+
+var map1 = null, map2 = null;
+var mapReady1 = false, mapReady2 = false;
+var pollTimer = null, waitTimer = null, waitSec = 0;
+var tripTimer = null, tripSec = 0;
+
+// ── INIT ────────────────────────────────────────────────────────────
+window.addEventListener("load", function() { doInit(); });
+
+async function doInit() {
+  if (!USER_ID) {
+    goPage("p0");
+    return;
+  }
+  try {
+    var res = await apiPost("/api/user", { user_id: USER_ID });
+    if (res.ok && res.user && res.user.registered) {
+      S.role  = res.user.role;
+      S.phone = res.user.phone;
+      S.loc   = { lat: res.user.loc_lat, lng: res.user.loc_lng };
+      S.addr  = res.user.loc_addr || "";
+      if (res.trip) {
+        S.tripId     = res.trip.id;
+        S.tripStatus = res.trip.status;
+        resumeTrip(res.trip, res.user);
+      } else {
+        if (S.role === "driver") showDriverHome();
+        else showPassHome();
+      }
+    } else {
+      goPage("p0");
+    }
+  } catch (e) {
+    goPage("p0");
+  }
+}
+
+function resumeTrip(trip, user) {
+  if (user.role === "passenger") {
+    if (trip.status === "searching") {
+      S.addr = trip.p_addr || "";
+      document.getElementById("waitAddr").textContent = S.addr || "—";
+      goPage("p7");
+      startWaitTimer();
+      startPolling();
+    } else if (trip.status === "matched") {
+      goPage("p8");
+      fillDriverInfo(trip);
+      startPolling();
+    } else if (trip.status === "started") {
+      goPage("p9");
+      document.getElementById("tripDrv").textContent = trip.driver_name || "Haydovchi";
+      startTripTimer();
+      startPolling();
+    } else if (trip.status === "completed" && !trip.rating) {
+      goPage("p10");
+    } else {
+      showPassHome();
+    }
+  } else {
+    if (trip.status === "matched" || trip.status === "started") {
+      S.activeDrvTrip = trip;
+      showDriverTrip(trip);
+    } else {
+      showDriverHome();
+    }
+  }
+}
+
+// ── NAVIGATSIYA ─────────────────────────────────────────────────────
+function goPage(id) {
+  var pages = document.querySelectorAll(".page");
+  for (var i = 0; i < pages.length; i++) {
+    pages[i].classList.remove("active");
+  }
+  var target = document.getElementById(id);
+  if (target) target.classList.add("active");
+  window.scrollTo(0, 0);
+
+  if (id === "p2" && !mapReady1) { setTimeout(initMap1, 150); }
+  if (id === "p6" && !mapReady2) { setTimeout(initMap2, 150); }
+
+  if (id === "p3") {
+    document.getElementById("passSeat").style.display = (S.role === "passenger") ? "block" : "none";
+    document.getElementById("driverSeat").style.display = (S.role === "driver") ? "block" : "none";
+    checkSeatBtn();
+  }
+  if (id === "p4") { fillSummary(); }
+  if (id === "p7") {
+    document.getElementById("waitAddr").textContent = S.addr || "—";
+  }
+}
+
+// ── ROL TANLASH ─────────────────────────────────────────────────────
+function pickRole(r) {
+  S.role = r;
+  document.getElementById("dCard").classList.toggle("sel", r === "driver");
+  document.getElementById("pCard").classList.toggle("sel", r === "passenger");
+  document.getElementById("roleBtn").disabled = false;
+}
+
+// ── TELEFON ─────────────────────────────────────────────────────────
+function fmtPhone(el) {
+  var v = el.value.replace(/\D/g, "");
+  if (v.indexOf("998") !== 0) { v = "998" + v; }
+  el.value = "+" + v.substring(0, 12);
+}
+
+function normPhone(raw) {
+  var d = raw.replace(/\D/g, "");
+  if (d.indexOf("998") === 0 && d.length === 12) { return "+" + d; }
+  if (d.length === 9) { return "+998" + d; }
+  if (d.charAt(0) === "0" && d.length === 10) { return "+998" + d.slice(1); }
+  return null;
+}
+
+function confirmPhone() {
+  var p = normPhone(document.getElementById("phoneInp").value);
+  if (!p) { showToast("Raqam noto'g'ri!", true); return; }
+  S.phone = p;
+  goPage("p2");
+}
+
+// ── XARITA 1 (ro'yxat) ──────────────────────────────────────────────
+function initMap1() {
+  if (mapReady1) return;
+  mapReady1 = true;
+  map1 = L.map("map", { center: ANDIJON, zoom: 14, zoomControl: false });
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    { maxZoom: 19, attribution: "OSM, CARTO" }).addTo(map1);
+
+  map1.on("movestart", function() {
+    document.getElementById("pin-wrap").classList.add("drag");
+  });
+  map1.on("move", function() {
+    var c = map1.getCenter();
+    document.getElementById("coord-b").textContent = c.lat.toFixed(5) + ", " + c.lng.toFixed(5);
+  });
+  map1.on("moveend", function() {
+    document.getElementById("pin-wrap").classList.remove("drag");
+    var c = map1.getCenter();
+    revGeo1(c.lat, c.lng);
+  });
+  setTimeout(function() { map1.invalidateSize(); }, 200);
+  gotoGPS();
+}
+
+function gotoGPS() {
+  if (!map1) return;
+  var btn = document.getElementById("gps-btn");
+  btn.textContent = "⏳";
+  navigator.geolocation.getCurrentPosition(
+    function(p) {
+      btn.textContent = "📍";
+      map1.setView([p.coords.latitude, p.coords.longitude], 16, { animate: true });
+    },
+    function() {
+      btn.textContent = "📍";
+      map1.setView(ANDIJON, 14, { animate: true });
+      showToast("GPS yo'q — xaritadan belgilang", true);
+    },
+    { timeout: 8000, enableHighAccuracy: true }
+  );
+}
+
+async function revGeo1(lat, lng) {
+  S.loc = { lat: lat, lng: lng };
+  document.getElementById("locBtn").disabled = false;
+  try {
+    var r = await fetch("https://nominatim.openstreetmap.org/reverse?lat=" + lat + "&lon=" + lng + "&format=json&accept-language=uz");
+    var d = await r.json();
+    var a = fmtAddr(d.address, d.display_name);
+    S.addr = a;
+    var el = document.getElementById("addrTxt");
+    el.textContent = a;
+    el.classList.add("set");
+  } catch (e) {
+    S.addr = lat.toFixed(4) + ", " + lng.toFixed(4);
+    document.getElementById("addrTxt").textContent = S.addr;
+  }
+}
+
+// ── XARITA 2 (taksi chaqirish) ──────────────────────────────────────
+function initMap2() {
+  if (mapReady2) return;
+  mapReady2 = true;
+  var center = (S.loc && S.loc.lat) ? [S.loc.lat, S.loc.lng] : ANDIJON;
+  map2 = L.map("map2", { center: center, zoom: 15, zoomControl: false });
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    { maxZoom: 19, attribution: "OSM, CARTO" }).addTo(map2);
+
+  map2.on("moveend", function() {
+    var c = map2.getCenter();
+    revGeo2(c.lat, c.lng);
+  });
+  setTimeout(function() { map2.invalidateSize(); }, 200);
+
+  navigator.geolocation.getCurrentPosition(
+    function(p) { map2.setView([p.coords.latitude, p.coords.longitude], 16, { animate: true }); },
+    function() {},
+    { timeout: 5000, enableHighAccuracy: true }
+  );
+}
+
+function gotoGPS2() {
+  if (!map2) return;
+  navigator.geolocation.getCurrentPosition(
+    function(p) { map2.setView([p.coords.latitude, p.coords.longitude], 16, { animate: true }); },
+    function() { showToast("GPS yo'q", true); },
+    { timeout: 5000 }
+  );
+}
+
+async function revGeo2(lat, lng) {
+  S.loc = { lat: lat, lng: lng };
+  document.getElementById("callBtn").disabled = false;
+  try {
+    var r = await fetch("https://nominatim.openstreetmap.org/reverse?lat=" + lat + "&lon=" + lng + "&format=json&accept-language=uz");
+    var d = await r.json();
+    var a = fmtAddr(d.address, d.display_name);
+    S.addr = a;
+    var el = document.getElementById("addrTxt2");
+    el.textContent = a;
+    el.classList.add("set");
+  } catch (e) {
+    S.addr = lat.toFixed(4) + ", " + lng.toFixed(4);
+  }
+}
+
+function fmtAddr(a, fb) {
+  if (!a) { return (fb || "").split(",").slice(0, 2).join(","); }
+  var p = [];
+  if (a.road || a.pedestrian) {
+    var road = a.road || a.pedestrian;
+    if (a.house_number) { road += " " + a.house_number; }
+    p.push(road);
+  }
+  if (a.suburb) { p.push(a.suburb); }
+  if (a.city || a.town || a.village) { p.push(a.city || a.town || a.village); }
+  return p.length ? p.join(", ") : (fb || "").split(",").slice(0, 2).join(",");
+}
+
+// ── O'RINDIQ ────────────────────────────────────────────────────────
+function setSeatPref(p) {
+  S.seatPref = p;
+  document.getElementById("frontCard").classList.toggle("sel", p === "front");
+  document.getElementById("backCard").classList.toggle("sel", p === "back");
+  checkSeatBtn();
+}
+
+function setSeatCount(n) {
+  S.seatCount = n;
+  for (var i = 1; i <= 4; i++) {
+    document.getElementById("sn" + i).classList.toggle("sel", i === n);
+  }
+  checkSeatBtn();
+}
+
+function checkSeatBtn() {
+  var ok = (S.role === "passenger") ? !!S.seatPref : !!S.seatCount;
+  document.getElementById("seatBtn").disabled = !ok;
+}
+
+// ── SUMMARY ─────────────────────────────────────────────────────────
+function fillSummary() {
+  S.carModel = (document.getElementById("carModel") && document.getElementById("carModel").value.trim()) || "";
+  S.carPlate = (document.getElementById("carPlate") && document.getElementById("carPlate").value.trim()) || "";
+
+  document.getElementById("sumPhone").textContent = S.phone || "—";
+  document.getElementById("sumRole").textContent  = (S.role === "driver") ? "Haydovchi" : "Yo'lovchi";
+  document.getElementById("sumAddr").textContent  = S.addr || "—";
+
+  var seat = "";
+  if (S.role === "passenger") {
+    seat = (S.seatPref === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
+  } else {
+    seat = S.seatCount + " ta";
+    if (S.carModel) { seat += " · " + S.carModel; }
+    if (S.carPlate) { seat += " " + S.carPlate; }
+  }
+  document.getElementById("sumSeat").textContent = seat;
+}
+
+// ── RO'YXAT ─────────────────────────────────────────────────────────
+async function doRegister() {
+  if (!USER_ID) { showToast("Telegram orqali kiring", true); return; }
+
+  var btn = document.getElementById("regBtn");
+  btn.disabled = true;
+  btn.textContent = "Saqlanmoqda...";
+
+  try {
+    var res = await apiPost("/api/register", {
+      user_id:    USER_ID,
+      name:       USER_NAME,
+      role:       S.role,
+      phone:      S.phone,
+      location:   { lat: S.loc && S.loc.lat, lng: S.loc && S.loc.lng, address: S.addr },
+      seat_pref:  S.seatPref,
+      seat_count: S.seatCount,
+      car_model:  S.carModel || "",
+      car_plate:  S.carPlate || ""
+    });
+
+    if (res.ok) {
+      showToast("Ro'yxatdan o'tdingiz!");
+      // DB da registered=true bo'lganini tekshiramiz
+      setTimeout(async function() {
+        try {
+          var check = await apiPost("/api/user", { user_id: USER_ID });
+          if (check.ok && check.user && check.user.registered) {
+            S.registered = true;
+            S.role  = check.user.role || S.role;
+            S.phone = check.user.phone || S.phone;
+          }
+        } catch(e) { /* ignore */ }
+        if (S.role === "driver") { showDriverHome(); }
+        else { showPassHome(); }
+      }, 700);
+    } else {
+      showToast(res.error || "Xato yuz berdi", true);
+      btn.disabled = false;
+      btn.textContent = "Ro'yxatdan o'tish!";
+    }
+  } catch (e) {
+    showToast("Internet xatosi", true);
+    btn.disabled = false;
+    btn.textContent = "Ro'yxatdan o'tish!";
+  }
+}
+
+// ── YO'LOVCHI BOSH ──────────────────────────────────────────────────
+function showPassHome() {
+  document.getElementById("p5name").textContent  = USER_NAME;
+  document.getElementById("p5phone").textContent = S.phone || "";
+  goPage("p5");
+}
+
+// ── TAKSI CHAQIRISH ─────────────────────────────────────────────────
+async function doCallTaxi() {
+  if (!USER_ID) { showToast("Telegram orqali kiring", true); return; }
+  if (!S.loc || !S.loc.lat) { showToast("Avval joylashuvni belgilang", true); return; }
+
+  var btn = document.getElementById("callBtn");
+  btn.disabled = true;
+  btn.textContent = "Qidirilmoqda...";
+
+  try {
+    var res = await apiPost("/api/call-taxi", {
+      user_id:  USER_ID,
+      location: { lat: S.loc.lat, lng: S.loc.lng, address: S.addr }
+    });
+
+    if (res.ok) {
+      S.tripId     = res.trip_id;
+      S.tripStatus = "searching";
+      document.getElementById("waitAddr").textContent = S.addr || "—";
+      goPage("p7");
+      startWaitTimer();
+      startPolling();
+    } else {
+      var errMsg = res.error || "Xato";
+      // Agar ro'yxat xatosi bo'lsa, foydalanuvchi buni bilsin
+      showToast(errMsg, true);
+      console.error("call-taxi error:", errMsg, "user_id:", USER_ID);
+      btn.disabled = false;
+      btn.textContent = "Taksi chaqirish!";
+    }
+  } catch (e) {
+    showToast("Internet xatosi", true);
+    console.error("call-taxi exception:", e);
+    btn.disabled = false;
+    btn.textContent = "Taksi chaqirish!";
+  }
+}
+
+// ── POLLING ─────────────────────────────────────────────────────────
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(checkStatus, 5000);
+}
+function stopPolling() { clearInterval(pollTimer); }
+
+async function checkStatus() {
+  if (!S.tripId) return;
+  try {
+    var res = await apiPost("/api/user", { user_id: USER_ID });
+    if (!res.ok || !res.trip) return;
+    var trip = res.trip;
+    if (trip.status === S.tripStatus) return;
+    S.tripStatus = trip.status;
+
+    if (trip.status === "matched") {
+      stopWaitTimer();
+      fillDriverInfo(trip);
+      goPage("p8");
+    } else if (trip.status === "started") {
+      document.getElementById("tripDrv").textContent = trip.driver_name || "Haydovchi";
+      startTripTimer();
+      goPage("p9");
+    } else if (trip.status === "completed") {
+      stopPolling(); stopTripTimer();
+      goPage("p10");
+    } else if (trip.status === "cancelled") {
+      stopPolling(); stopWaitTimer();
+      showToast("Trip bekor qilindi", true);
+      showPassHome();
+    }
+  } catch (e) {}
+}
+
+function fillDriverInfo(trip) {
+  document.getElementById("drvName").textContent  = trip.driver_name  || "Haydovchi";
+  document.getElementById("drvCar").textContent   = (trip.car_model || "") + " " + (trip.car_plate || "");
+  document.getElementById("drvPhone").textContent = trip.driver_phone || "—";
+}
+
+// ── TAYMERLAR ───────────────────────────────────────────────────────
+function startWaitTimer() {
+  waitSec = 0; stopWaitTimer();
+  waitTimer = setInterval(function() {
+    waitSec++;
+    document.getElementById("waitTime").textContent = fmtTime(waitSec);
+  }, 1000);
+}
+function stopWaitTimer() { clearInterval(waitTimer); }
+
+function startTripTimer() {
+  tripSec = 0; stopTripTimer();
+  tripTimer = setInterval(function() {
+    tripSec++;
+    var el = document.getElementById("tripTime");
+    if (el) { el.textContent = fmtTime(tripSec); }
+  }, 1000);
+}
+function stopTripTimer() { clearInterval(tripTimer); }
+
+function fmtTime(s) {
+  return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+}
+
+// ── BEKOR QILISH ────────────────────────────────────────────────────
+async function doCancel() {
+  if (!confirm("Tripni bekor qilmoqchimisiz?")) return;
+  try {
+    if (S.tripId) {
+      await apiPost("/api/trip-status", { trip_id: S.tripId, status: "cancelled", driver_id: 0 });
+    }
+  } catch (e) {}
+  stopPolling(); stopWaitTimer();
+  S.tripId = null; S.tripStatus = null;
+  showPassHome();
+}
+
+// ── BAHO ────────────────────────────────────────────────────────────
+function setStar(n) {
+  S.currentRating = n;
+  var stars = document.querySelectorAll(".star");
+  for (var i = 0; i < stars.length; i++) {
+    stars[i].classList.toggle("lit", i < n);
+  }
+  document.getElementById("rateBtn").disabled = false;
+}
+
+async function doRate() {
+  var comment = document.getElementById("rateComment").value.trim();
+  try {
+    await apiPost("/api/rate", { trip_id: S.tripId, rating: S.currentRating, comment: comment });
+    showToast("Rahmat!");
+    S.tripId = null; S.tripStatus = null;
+    setTimeout(showPassHome, 1200);
+  } catch (e) { showToast("Xato", true); }
+}
+
+// ── HAYDOVCHI BOSH ──────────────────────────────────────────────────
+function showDriverHome() {
+  document.getElementById("p11name").textContent  = USER_NAME;
+  document.getElementById("p11phone").textContent = S.phone || "";
+  goPage("p11");
+  loadTrips();
+}
+
+async function loadTrips() {
+  var list = document.getElementById("tripsList");
+  list.innerHTML = "<p style='color:var(--muted);font-size:13px;text-align:center;padding:8px'>Yuklanmoqda...</p>";
+  try {
+    var res = await apiGet("/api/trips/searching");
+    if (!res.ok || !res.trips || !res.trips.length) {
+      list.innerHTML = "<p style='color:var(--muted);font-size:13px;text-align:center;padding:12px'>Hozircha yo'lovchi yo'q</p>";
+      return;
+    }
+    var html = "";
+    for (var i = 0; i < res.trips.length; i++) {
+      var t = res.trips[i];
+      var seatTxt = (t.seat_pref === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
+      html += "<div class='trip-item'>";
+      html += "<h3>" + (t.name || "Yo'lovchi") + "</h3>";
+      html += "<p>📍 " + (t.p_addr || "—") + "</p>";
+      html += "<p>🪑 " + seatTxt + " &nbsp; 📱 " + (t.phone || "—") + "</p>";
+      html += "<button class='btn btn-green' style='margin-top:10px;margin-bottom:0' onclick='acceptTrip(" + t.id + ")'>Qabul qilish</button>";
+      html += "</div>";
+    }
+    list.innerHTML = html;
+  } catch (e) {
+    list.innerHTML = "<p style='color:var(--red);font-size:13px;text-align:center;padding:8px'>Internet xatosi</p>";
+  }
+}
+
+async function acceptTrip(tripId) {
+  try {
+    var res = await apiPost("/api/accept-trip", { driver_id: USER_ID, trip_id: tripId });
+    if (res.ok) {
+      S.tripId = tripId; S.tripStatus = "matched";
+      var res2 = await apiPost("/api/user", { user_id: USER_ID });
+      if (res2.trip) {
+        S.activeDrvTrip = res2.trip;
+        showDriverTrip(res2.trip);
+      }
+    } else {
+      showToast(res.error || "Xato", true);
+      loadTrips();
+    }
+  } catch (e) { showToast("Xato", true); }
+}
+
+function showDriverTrip(trip) {
+  document.getElementById("paxName").textContent  = trip.passenger_name || trip.name || "Yo'lovchi";
+  document.getElementById("paxPhone").textContent = trip.passenger_phone || trip.phone || "—";
+  document.getElementById("paxAddr").textContent  = trip.p_addr || "—";
+  document.getElementById("paxSeat").textContent  = (trip.seat_pref === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
+
+  if (trip.status === "matched") {
+    document.getElementById("drvIco").textContent = "✅";
+    document.getElementById("drvTtl").textContent = "Yo'lovchi kutmoqda";
+    document.getElementById("drvSub").textContent = "Yo'lovchi oldiga boring";
+    document.getElementById("drvActBtn").textContent = "Yo'lga chiqdik!";
+  } else if (trip.status === "started") {
+    document.getElementById("drvIco").textContent = "🚗";
+    document.getElementById("drvTtl").textContent = "Trip davom etmoqda";
+    document.getElementById("drvSub").textContent = "Manzilga yetib boring";
+    document.getElementById("drvActBtn").textContent = "Manzilga yetdik!";
+  }
+  goPage("p12");
+}
+
+async function driverAction() {
+  var trip = S.activeDrvTrip;
+  if (!trip) return;
+  var newStatus = (trip.status === "matched") ? "started" : "completed";
+  try {
+    await apiPost("/api/trip-status", { trip_id: trip.id, status: newStatus, driver_id: USER_ID });
+    trip.status = newStatus;
+    S.activeDrvTrip = trip;
+    if (newStatus === "started") {
+      showDriverTrip(trip);
+      showToast("Trip boshlandi!");
+    } else {
+      showToast("Trip yakunlandi!");
+      S.activeDrvTrip = null; S.tripId = null;
+      setTimeout(showDriverHome, 1200);
+    }
+  } catch (e) { showToast("Xato", true); }
+}
+
+// ── ROL O'ZGARTIRISH ────────────────────────────────────────────────
+function doChangeRole() {
+  S.role = null; S.phone = null; S.seatPref = null; S.seatCount = null;
+  goPage("p0");
+}
+
+// ── API YORDAMCHILAR ────────────────────────────────────────────────
+async function apiPost(path, body) {
+  var r = await fetch(API_URL + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+async function apiGet(path) {
+  var r = await fetch(API_URL + path);
+  return r.json();
+}
+
+// ── TOAST ────────────────────────────────────────────────────────────
+function showToast(msg, isErr) {
+  var el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = "toast show" + (isErr ? " err" : "");
+  clearTimeout(el._t);
+  el._t = setTimeout(function() { el.classList.remove("show"); }, 2500);
+}
+</script>
+</body>
+</html>
