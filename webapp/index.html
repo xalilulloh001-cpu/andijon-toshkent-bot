@@ -7,6 +7,7 @@
   <title>AndTaxi — Andijon ↔ Toshkent</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    CLAUDE QISMI — Asosiy tuzilma, UX
@@ -1626,15 +1627,67 @@
 
   <script>
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // CLAUDE — Telegram + Backend ulanishi
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const tg = window.Telegram ? window.Telegram.WebApp : null;
+    if (tg) { tg.ready(); tg.expand(); }
+    const USER_ID = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user.id : 0;
+    const USER_NAME = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? (tg.initDataUnsafe.user.first_name || "Do'st") : "Do'st";
+    const API_URL = "https://andijon-toshkent-bot2-production.up.railway.app";
+
+    async function apiPost(path, body) {
+      try {
+        const r = await fetch(API_URL + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        return await r.json();
+      } catch (e) {
+        return { ok: false, error: "Internet xatosi" };
+      }
+    }
+    async function apiGet(path) {
+      try {
+        const r = await fetch(API_URL + path);
+        return await r.json();
+      } catch (e) {
+        return { ok: false, error: "Internet xatosi" };
+      }
+    }
+
+    function getCurrentLocation() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) { resolve(null); return; }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null),
+          { timeout: 7000 }
+        );
+      });
+    }
+
+    async function reverseGeocode(lat, lng) {
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=uz`);
+        const d = await r.json();
+        return d.display_name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      } catch (e) {
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      }
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // CLAUDE — State va mantiq
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     const S = {
       lang: 'uz',
       d: { dir: 'at', seats: 4, time: 'now', step: 1, active: false },
-      p: { dir: 'at', pos: 'front', cnt: 1, time: 'now', step: 1, active: false },
+      p: { dir: 'at', pos: 'front', cnt: 1, time: 'now', step: 1, active: false,
+           loc: null, addr: '', tripId: null, tripStatus: null },
       star: 0, delay: 5, grp: 1,
       bl: ['Jamshid T.'],
-      etaTmr: null
+      etaTmr: null, pollTmr: null
     };
     const DIRS = { at: 'Andijon → Toshkent', ta: 'Toshkent → Andijon' };
 
@@ -1689,6 +1742,14 @@
         document.getElementById('p-' + x).style.display = x === t ? 'flex' : 'none';
         document.getElementById('t-' + x).classList.toggle('on', x === t);
       });
+      if (t === 'pas' && !S.p.loc) {
+        getCurrentLocation().then(async (loc) => {
+          if (loc) {
+            S.p.loc = loc;
+            S.p.addr = await reverseGeocode(loc.lat, loc.lng);
+          }
+        });
+      }
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1849,46 +1910,127 @@
         document.getElementById('pc-time').textContent = tt;
       }
     }
-    function sendReq() {
+    async function sendReq() {
+      const btn = document.querySelector('#ps4 .btn-p');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Yuborilmoqda...'; }
+
+      // Joylashuvni olish (agar hali olinmagan bo'lsa)
+      if (!S.p.loc) {
+        const loc = await getCurrentLocation();
+        if (loc) {
+          S.p.loc = loc;
+          S.p.addr = await reverseGeocode(loc.lat, loc.lng);
+        }
+      }
+
+      if (!USER_ID) {
+        notif('w', '⚠️ Xato', 'Telegram orqali oching');
+        if (btn) { btn.disabled = false; btn.textContent = '📤 So\'rov yuborish'; }
+        return;
+      }
+      if (!S.p.loc) {
+        notif('w', '⚠️ Joylashuv topilmadi', 'GPS ruxsatini tekshiring');
+        if (btn) { btn.disabled = false; btn.textContent = '📤 So\'rov yuborish'; }
+        return;
+      }
+
+      const res = await apiPost('/api/call-taxi', {
+        user_id: USER_ID,
+        location: { lat: S.p.loc.lat, lng: S.p.loc.lng, address: S.p.addr }
+      });
+
+      if (btn) { btn.disabled = false; btn.textContent = '📤 So\'rov yuborish'; }
+
+      if (!res.ok) {
+        notif('w', '❌ Xato', res.error || 'Qayta urinib ko\'ring');
+        return;
+      }
+
       S.p.active = true;
+      S.p.tripId = res.trip_id;
+      S.p.tripStatus = res.status || 'searching';
+
       document.getElementById('p-act-dir').textContent = DIRS[S.p.dir];
       document.getElementById('p-act-seat').textContent = (S.p.pos === 'front' ? '🪑 Oldi' : '💺 Orqa') + ' · ' + S.p.cnt + ' kishi';
       document.getElementById('p-act-time').textContent = S.p.time === 'now' ? 'Hozir' : 'Bugun · ' + document.getElementById('p-from').value + ' — ' + document.getElementById('p-to').value;
       document.getElementById('p-active').style.display = 'block';
       document.getElementById('p-form').style.display = 'none';
       notif('s', '✅ So\'rov yuborildi!', 'Haydovchi topilganda xabar beramiz');
-      setTimeout(driverFound, 4000);
+      startPolling();
     }
-    function driverFound() {
+
+    function startPolling() {
+      stopPolling();
+      S.pollTmr = setInterval(checkTripStatus, 4000);
+    }
+    function stopPolling() { clearInterval(S.pollTmr); }
+
+    async function checkTripStatus() {
+      if (!S.p.tripId || !USER_ID) return;
+      const res = await apiPost('/api/user', { user_id: USER_ID });
+      if (!res.ok || !res.trip) return;
+      const trip = res.trip;
+      if (trip.status === S.p.tripStatus) return;
+      S.p.tripStatus = trip.status;
+
+      if (trip.status === 'matched') {
+        driverFound(trip);
+      } else if (trip.status === 'completed') {
+        notif('s', '🎉 Manzilga yetib keldingiz!', 'Yaxshi safar bo\'ldimi?');
+        stopPolling();
+      } else if (trip.status === 'cancelled') {
+        notif('w', '❌ Trip bekor qilindi', '');
+        resetPassengerForm();
+        stopPolling();
+      }
+    }
+
+    async function driverFound(trip) {
       document.getElementById('p-act-badge').textContent = 'TOPILDI';
       document.getElementById('p-act-badge').className = 'badge bm';
-      document.getElementById('p-drv-nm').textContent = 'Akbar Toshmatov';
-      document.getElementById('p-drv-ph').textContent = '+998 90 123 45 67';
-      document.getElementById('p-drv-car').textContent = 'Nexia 3 · Oq · 30 A 123 AA';
-      document.getElementById('p-drv-price').textContent = '120 000 so\'m';
-      document.getElementById('p-drv-eta').textContent = '~8 daqiqada yetib keladi';
+
+      let driverName = '—', driverPhone = '—', driverCar = '—';
+      if (trip.driver_id) {
+        const dres = await apiPost('/api/user', { user_id: trip.driver_id });
+        if (dres.ok && dres.user) {
+          driverName = dres.user.name || '—';
+          driverPhone = dres.user.phone || '—';
+          driverCar = `${dres.user.car_model || ''} · ${dres.user.car_plate || ''}`.trim();
+        }
+      }
+
+      document.getElementById('p-drv-nm').textContent = driverName;
+      document.getElementById('p-drv-ph').textContent = driverPhone;
+      document.getElementById('p-drv-car').textContent = driverCar;
+      document.getElementById('p-drv-price').textContent = 'Kelishilgan narxda';
+      document.getElementById('p-drv-eta').textContent = 'Yo\'lda';
       document.getElementById('p-drv-found').style.display = 'block';
-      notif('s', '🚗 Haydovchi topildi!', 'Akbar · Nexia 3 · ~8 daqiqa');
+      notif('s', '🚗 Haydovchi topildi!', driverName);
       document.getElementById('track-box').style.display = 'block';
-      startEta();
     }
-    function startEta() {
-      clearInterval(S.etaTmr); let e = 8;
-      document.getElementById('tr-eta').textContent = e;
-      document.getElementById('tr-bar').style.width = '5%';
-      S.etaTmr = setInterval(() => {
-        e--; document.getElementById('tr-eta').textContent = Math.max(0, e);
-        document.getElementById('tr-bar').style.width = Math.min(100, (8 - e) / 8 * 100) + '%';
-        if (e <= 0) { clearInterval(S.etaTmr); notif('s', '🚗 Haydovchi yetib keldi!', 'Yaxshi safar! 🙏'); document.getElementById('p-drv-eta').textContent = 'Yetib keldi! ✅'; }
-      }, 2500);
+
+    async function cancelReq() {
+      clearInterval(S.etaTmr);
+      stopPolling();
+      if (S.p.tripId) {
+        await apiPost('/api/trip-status', {
+          trip_id: S.p.tripId,
+          status: 'cancelled',
+          driver_id: 0
+        });
+      }
+      resetPassengerForm();
+      notif('w', '❌ So\'rov bekor qilindi', '');
     }
-    function cancelReq() {
-      clearInterval(S.etaTmr); S.p.active = false;
+
+    function resetPassengerForm() {
+      S.p.active = false;
+      S.p.tripId = null;
+      S.p.tripStatus = null;
       document.getElementById('p-active').style.display = 'none';
       document.getElementById('p-form').style.display = 'block';
       document.getElementById('track-box').style.display = 'none';
       pStep(1);
-      notif('w', '❌ So\'rov bekor qilindi', '');
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
