@@ -257,6 +257,15 @@ async def on_webapp_data(msg: types.Message):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.init()
+    # FIX: agar bu bot tokeni uchun eski webhook o'rnatilgan bo'lsa,
+    # polling bilan abadiy to'qnashadi ("Conflict" xatosi cheksiz
+    # takrorlanadi va bot hech qanday xabar qabul qila olmaydi).
+    # Ishga tushishdan oldin uni tozalaymiz.
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        logger.info("✅ Webhook tozalandi (agar bor bo'lsa)")
+    except Exception as e:
+        logger.error(f"⚠️ Webhook tozalashda xato: {e}")
     task = asyncio.create_task(
         dp.start_polling(bot, allowed_updates=["message","web_app_data"])
     )
