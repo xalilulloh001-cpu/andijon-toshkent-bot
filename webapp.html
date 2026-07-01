@@ -306,7 +306,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
   </div>
   <button class="btn btn-gold" id="seatBtn" onclick="goPage('p4')" disabled>Davom etish →</button>
-  <button class="btn btn-dark" onclick="goPage('p2')">← Orqaga</button>
+  <button class="btn btn-dark" onclick="goPage(S.role === 'passenger' ? 'p1' : 'p2')">← Orqaga</button>
 </div>
 
 <!-- P4: TASDIQLASH -->
@@ -324,7 +324,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   <div class="card">
     <div class="sum-row"><span class="sum-k">📱 Raqam</span><span class="sum-v gold" id="sumPhone">—</span></div>
     <div class="sum-row"><span class="sum-k">🏷️ Rol</span><span class="sum-v" id="sumRole">—</span></div>
-    <div class="sum-row"><span class="sum-k">📍 Joylashuv</span><span class="sum-v" id="sumAddr">—</span></div>
+    <div class="sum-row" id="sumAddrRow"><span class="sum-k">📍 Joylashuv</span><span class="sum-v" id="sumAddr">—</span></div>
     <div class="sum-row"><span class="sum-k">🪑 O'rindiq</span><span class="sum-v" id="sumSeat">—</span></div>
   </div>
   <button class="btn btn-gold" id="regBtn" onclick="doRegister()">🚀 Ro'yxatdan o'tish!</button>
@@ -627,7 +627,12 @@ function confirmPhone() {
   var p = normPhone(document.getElementById("phoneInp").value);
   if (!p) { showToast("Raqam noto'g'ri!", true); return; }
   S.phone = p;
-  goPage("p2");
+  // FIX: yo'lovchi uchun ro'yxatdan o'tishdagi joylashuv keyin hech
+  // qayerda ishlatilmaydi (taksi chaqirishda baribir yangi joylashuv
+  // so'raladi) — shuning uchun yo'lovchi to'g'ridan-to'g'ri o'rindiq
+  // sahifasiga o'tadi. Haydovchi uchun esa joylashuv shart (masofa
+  // bo'yicha moslashtirish shunga tayanadi), shuning uchun u P2'dan o'tadi.
+  goPage(S.role === "passenger" ? "p3" : "p2");
 }
 
 // ── XARITA 1 (ro'yxat) ──────────────────────────────────────────────
@@ -803,6 +808,7 @@ function fillSummary() {
 
   document.getElementById("sumPhone").textContent = S.phone || "—";
   document.getElementById("sumRole").textContent  = (S.role === "driver") ? "Haydovchi" : "Yo'lovchi";
+  document.getElementById("sumAddrRow").style.display = (S.role === "passenger") ? "none" : "flex";
   document.getElementById("sumAddr").textContent  = S.addr || "—";
 
   var seat = "";
