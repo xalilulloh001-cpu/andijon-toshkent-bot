@@ -187,8 +187,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
 #toast.ok { background:var(--green); }
 /* ═══════════════════════════════════════ */
 </style>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 
@@ -660,6 +658,20 @@ function gotoGPS() {
   if (!map1) return;
   var btn = document.getElementById("gps-btn");
   btn.textContent = "⏳";
+  // FIX (2 xato birga): 1) GPS umuman qo'llab-quvvatlanmasa, eski kod
+  // xato berib to'xtab qolardi. 2) GPS rad etilganda xarita ANDIJON
+  // nuqtasiga qaytarilardi — lekin xarita ALLAQACHON shu nuqtada
+  // turgan edi (boshlang'ich holat), shuning uchun Leaflet "harakat"
+  // deb hisoblamay moveend chaqirmasdi va "Davom etish" tugmasi
+  // ABADIY o'chirilgan holda qolardi. Endi ikkala holatda ham
+  // revGeo1() to'g'ridan-to'g'ri chaqirilib, tugma kafolatlangan
+  // holda yoqiladi.
+  if (!navigator.geolocation) {
+    btn.textContent = "📍";
+    showToast("GPS qo'llab-quvvatlanmaydi — xaritadan belgilang", true);
+    revGeo1(ANDIJON[0], ANDIJON[1]);
+    return;
+  }
   navigator.geolocation.getCurrentPosition(
     function(p) {
       btn.textContent = "📍";
@@ -667,8 +679,8 @@ function gotoGPS() {
     },
     function() {
       btn.textContent = "📍";
-      map1.setView(ANDIJON, 14, { animate: true });
       showToast("GPS yo'q — xaritadan belgilang", true);
+      revGeo1(ANDIJON[0], ANDIJON[1]);
     },
     { timeout: 8000, enableHighAccuracy: true }
   );
@@ -706,15 +718,27 @@ function initMap2() {
   });
   setTimeout(function() { map2.invalidateSize(); }, 200);
 
-  navigator.geolocation.getCurrentPosition(
-    function(p) { map2.setView([p.coords.latitude, p.coords.longitude], 16, { animate: true }); },
-    function() {},
-    { timeout: 5000, enableHighAccuracy: true }
-  );
+  // FIX: avvalgi kodda GPS rad etilsa (yoki ishlamasa) hech narsa
+  // qilinmasdi — xarita joyidan qimirlamas, "moveend" hech qachon
+  // chaqirilmas va shu sabab "Taksi chaqirish!" tugmasi ABADIY
+  // o'chirilgan holda qolib, foydalanuvchi umuman taksi chaqira
+  // olmasdi. Endi GPS ishlamasa ham revGeo2() to'g'ridan-to'g'ri
+  // chaqirilib, tugma har doim yoqiladi (xarita harakatiga bog'liq
+  // qolmaydi).
+  if (!navigator.geolocation) {
+    revGeo2(center[0], center[1]);
+  } else {
+    navigator.geolocation.getCurrentPosition(
+      function(p) { map2.setView([p.coords.latitude, p.coords.longitude], 16, { animate: true }); },
+      function() { showToast("GPS yo'q — xaritadan belgilang", true); revGeo2(center[0], center[1]); },
+      { timeout: 5000, enableHighAccuracy: true }
+    );
+  }
 }
 
 function gotoGPS2() {
   if (!map2) return;
+  if (!navigator.geolocation) { showToast("GPS qo'llab-quvvatlanmaydi", true); return; }
   navigator.geolocation.getCurrentPosition(
     function(p) { map2.setView([p.coords.latitude, p.coords.longitude], 16, { animate: true }); },
     function() { showToast("GPS yo'q", true); },
