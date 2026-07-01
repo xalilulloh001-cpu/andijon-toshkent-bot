@@ -606,9 +606,15 @@ function pickRole(r) {
 
 // ── TELEFON ─────────────────────────────────────────────────────────
 function fmtPhone(el) {
-  var v = el.value.replace(/\D/g, "");
-  if (v.indexOf("998") !== 0) { v = "998" + v; }
-  el.value = "+" + v.substring(0, 12);
+  // FIX: eski kod har bosilgan tugmadan keyin "998" ni qayta-qayta
+  // qo'shib, raqamni chalkashtirib yuborardi (masalan foydalanuvchi
+  // "998901234567" deb yozsa, natija "998998901234..." bo'lib qolardi).
+  // Endi shunchaki raqam bo'lmagan belgilarni tozalab, 12 ta raqamgacha
+  // cheklaymiz — foydalanuvchi "998..." bilan ham, "90..." bilan ham
+  // yozishi mumkin, to'g'ri-noto'g'riligini "Davom etish" bosilganda
+  // normPhone() tekshiradi.
+  var v = el.value.replace(/\D/g, "").substring(0, 12);
+  el.value = "+" + v;
 }
 
 function normPhone(raw) {
