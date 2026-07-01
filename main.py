@@ -442,7 +442,12 @@ async def call_taxi(request: Request):
             result = await do_join(int(fallback_group), "back")
             if not result:
                 return JSONResponse({"ok": False, "error": "Bu joy allaqachon band bo'ldi, qayta urining"})
-            return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched"})
+            driver = await db.get_user(result["driver_id"])
+            return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched",
+                "driver_name": driver.get("name") if driver else None,
+                "driver_phone": driver.get("phone") if driver else None,
+                "car_model": driver.get("car_model") if driver else None,
+                "car_plate": driver.get("car_plate") if driver else None})
 
         group = await db.find_nearest_group_with_space(lat, lng, seat_pref)
         if not group:
@@ -466,7 +471,9 @@ async def call_taxi(request: Request):
         if not result:
             return JSONResponse({"ok": False, "error": "Bo'sh joy topilmadi, qayta urining"})
 
-        return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched"})
+        return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched",
+            "driver_name": group.get("driver_name"), "driver_phone": group.get("driver_phone"),
+            "car_model": group.get("car_model"), "car_plate": group.get("car_plate")})
     except Exception as e:
         logger.error(f"/api/call-taxi error: {e}")
         return JSONResponse({"ok": False, "error": str(e)})

@@ -285,16 +285,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
   </div>
   <div id="driverSeat" style="display:none">
     <div class="card">
-      <div class="card-ttl">🚗 Bo'sh o'rindiqlar soni</div>
-      <div class="num-grid">
-        <div class="num-btn" id="sn1" onclick="setSeatCount(1)">1</div>
-        <div class="num-btn" id="sn2" onclick="setSeatCount(2)">2</div>
-        <div class="num-btn" id="sn3" onclick="setSeatCount(3)">3</div>
-        <div class="num-btn" id="sn4" onclick="setSeatCount(4)">4</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-ttl">🚘 Mashina (ixtiyoriy)</div>
+      <div class="card-ttl">🚘 Mashina</div>
+      <p class="hint" style="text-align:left;margin-bottom:12px">Har safar nechta yo'lovchi olishni keyinroq, navbatga qo'shilganda belgilaysiz.</p>
       <div class="inp-grp">
         <label class="inp-lb">Mashina modeli</label>
         <input class="inp" id="carModel" placeholder="Cobalt, Malibu, Nexia...">
@@ -306,7 +298,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
   </div>
   <button class="btn btn-gold" id="seatBtn" onclick="goPage('p4')" disabled>Davom etish →</button>
-  <button class="btn btn-dark" onclick="goPage(S.role === 'passenger' ? 'p1' : 'p2')">← Orqaga</button>
+  <button class="btn btn-dark" onclick="goPage('p1')">← Orqaga</button>
 </div>
 
 <!-- P4: TASDIQLASH -->
@@ -443,28 +435,43 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;backgrou
     </div>
     <div style="margin-left:auto;font-size:11px;color:var(--green);font-weight:700;background:rgba(76,175,80,.15);padding:4px 10px;border-radius:20px">● Faol</div>
   </div>
-  <div class="card">
-    <div class="card-ttl">📋 Kelayotgan so'rovlar</div>
-    <div id="tripsList"><p style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0">So'rovlar yuklanmoqda...</p></div>
-    <button class="btn btn-dark" style="margin-top:8px" onclick="loadTrips()">🔄 Yangilash</button>
+
+  <!-- Navbatga qo'shilmagan holat -->
+  <div id="queueJoinBox">
+    <div class="card">
+      <div class="card-ttl">🪑 Bugun nechta yo'lovchi olasiz?</div>
+      <div class="seat-grid">
+        <div class="seat-card" id="frontToggle" onclick="toggleFrontSeat()">
+          <div class="si">⬆️</div><div class="sn">Old o'rindiq</div><div class="ss" id="frontToggleTxt">Yo'q</div>
+        </div>
+      </div>
+      <p class="hint" style="margin:12px 0 8px;text-align:left">Orqada nechta joy bor?</p>
+      <div class="num-grid">
+        <div class="num-btn" id="bn0" onclick="setBackSeats(0)">0</div>
+        <div class="num-btn sel" id="bn1" onclick="setBackSeats(1)">1</div>
+        <div class="num-btn" id="bn2" onclick="setBackSeats(2)">2</div>
+        <div class="num-btn" id="bn3" onclick="setBackSeats(3)">3</div>
+      </div>
+    </div>
+    <button class="btn btn-gold" id="joinQueueBtn" onclick="doJoinQueue()">🚕 Navbatga qo'shilish</button>
   </div>
+
+  <!-- Navbatda / safar davomida holat -->
+  <div id="queueActiveBox" style="display:none">
+    <div class="status-box" style="padding:16px 0">
+      <div class="status-ico" id="queueIco">🅿️</div>
+      <div class="status-ttl" id="queueTtl">Navbatda turibsiz</div>
+      <div class="status-sub" id="queueSub">0/0 band</div>
+    </div>
+    <div class="card">
+      <div class="card-ttl">👥 Yo'lovchilar</div>
+      <div id="queueMembersList"><p style="color:var(--muted);font-size:13px;text-align:center;padding:12px 0">Hali yo'lovchi yo'q</p></div>
+    </div>
+    <button class="btn btn-green" id="startGroupBtn" onclick="doStartGroup()" style="display:none">🚀 Yo'lga chiqamiz!</button>
+    <button class="btn btn-green" id="finishGroupBtn" onclick="doFinishGroup()" style="display:none">✅ Safar tugadi!</button>
+  </div>
+
   <button class="btn btn-dark" onclick="doChangeRole()">🔄 Yo'lovchiga o'tish</button>
-</div>
-!-- P12: HAYDOVCHI TRIP -->
-<div class="page" id="p12">
-  <div class="status-box">
-    <div class="status-ico" id="drvIco">🚗</div>
-    <div class="status-ttl" id="drvTtl">Trip</div>
-    <div class="status-sub" id="drvSub"></div>
-  </div>
-  <div class="card">
-    <div class="sum-row"><span class="sum-k">👤 Yo'lovchi</span><span class="sum-v" id="paxName">—</span></div>
-    <div class="sum-row"><span class="sum-k">📱 Telefon</span><span class="sum-v" id="paxPhone">—</span></div>
-    <div class="sum-row"><span class="sum-k">📍 Manzil</span><span class="sum-v" id="paxAddr">—</span></div>
-    <div class="sum-row"><span class="sum-k">🪑 O'rindiq</span><span class="sum-v" id="paxSeat">—</span></div>
-  </div>
-  <button class="btn btn-green" id="drvActBtn" onclick="driverAction()">Tripni boshlash</button>
-  <button class="btn btn-dark" onclick="goPage('p11')">← Orqaga</button>
 </div>
 
 <div id="toast"></div>
@@ -556,12 +563,9 @@ function resumeTrip(trip, user) {
       showPassHome();
     }
   } else {
-    if (trip.status === "matched" || trip.status === "started") {
-      S.activeDrvTrip = trip;
-      showDriverTrip(trip);
-    } else {
-      showDriverHome();
-    }
+    // FIX: haydovchi uchun endi alohida "trip"ga emas, balki navbat/guruh
+    // holatiga qarab yo'naltiramiz — showDriverHome() buni o'zi aniqlaydi.
+    showDriverHome();
   }
 }
 
@@ -627,12 +631,11 @@ function confirmPhone() {
   var p = normPhone(document.getElementById("phoneInp").value);
   if (!p) { showToast("Raqam noto'g'ri!", true); return; }
   S.phone = p;
-  // FIX: yo'lovchi uchun ro'yxatdan o'tishdagi joylashuv keyin hech
-  // qayerda ishlatilmaydi (taksi chaqirishda baribir yangi joylashuv
-  // so'raladi) — shuning uchun yo'lovchi to'g'ridan-to'g'ri o'rindiq
-  // sahifasiga o'tadi. Haydovchi uchun esa joylashuv shart (masofa
-  // bo'yicha moslashtirish shunga tayanadi), shuning uchun u P2'dan o'tadi.
-  goPage(S.role === "passenger" ? "p3" : "p2");
+  // FIX: endi HAYDOVCHI ham ro'yxatdan o'tishda joylashuv bermaydi —
+  // uning joylashuvi endi har safar "Navbatga qo'shilish" bosilganda
+  // yangi GPS orqali olinadi. Shuning uchun ikkala rol ham to'g'ridan-
+  // to'g'ri o'rindiq/mashina sahifasiga o'tadi.
+  goPage("p3");
 }
 
 // ── XARITA 1 (ro'yxat) ──────────────────────────────────────────────
@@ -788,16 +791,11 @@ function setSeatPref(p) {
   checkSeatBtn();
 }
 
-function setSeatCount(n) {
-  S.seatCount = n;
-  for (var i = 1; i <= 4; i++) {
-    document.getElementById("sn" + i).classList.toggle("sel", i === n);
-  }
-  checkSeatBtn();
-}
-
 function checkSeatBtn() {
-  var ok = (S.role === "passenger") ? !!S.seatPref : !!S.seatCount;
+  // FIX: haydovchi endi bu yerda o'rindiq sonini tanlamaydi (buni
+  // navbatga qo'shilganda beradi) — shuning uchun tugma uning uchun
+  // har doim yoqilgan turadi. Yo'lovchi uchun esa old/orqa tanlashi shart.
+  var ok = (S.role === "passenger") ? !!S.seatPref : true;
   document.getElementById("seatBtn").disabled = !ok;
 }
 
@@ -808,16 +806,14 @@ function fillSummary() {
 
   document.getElementById("sumPhone").textContent = S.phone || "—";
   document.getElementById("sumRole").textContent  = (S.role === "driver") ? "Haydovchi" : "Yo'lovchi";
-  document.getElementById("sumAddrRow").style.display = (S.role === "passenger") ? "none" : "flex";
-  document.getElementById("sumAddr").textContent  = S.addr || "—";
+  // FIX: joylashuv endi ro'yxatdan o'tishda hech kimdan olinmaydi
+  document.getElementById("sumAddrRow").style.display = "none";
 
   var seat = "";
   if (S.role === "passenger") {
     seat = (S.seatPref === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
   } else {
-    seat = S.seatCount + " ta";
-    if (S.carModel) { seat += " · " + S.carModel; }
-    if (S.carPlate) { seat += " " + S.carPlate; }
+    seat = (S.carModel || S.carPlate) ? ((S.carModel || "") + " " + (S.carPlate || "")).trim() : "Kiritilmagan";
   }
   document.getElementById("sumSeat").textContent = seat;
 }
@@ -881,7 +877,13 @@ function showPassHome() {
 async function doCallTaxi() {
   if (!USER_ID) { showToast("Telegram orqali kiring", true); return; }
   if (!S.loc || !S.loc.lat) { showToast("Avval joylashuvni belgilang", true); return; }
+  await sendCallTaxi(false, null);
+}
 
+// FIX: endi moslashtirish DARHOL bo'lgani uchun (navbatdagi haydovchiga
+// avtomatik qo'shiladi), soxta "kutish" ekraniga o'tkazmasdan to'g'ridan
+// to'g'ri "haydovchi topildi" sahifasini ko'rsatamiz.
+async function sendCallTaxi(acceptFallback, groupId) {
   var btn = document.getElementById("callBtn");
   btn.disabled = true;
   btn.textContent = "Qidirilmoqda...";
@@ -889,27 +891,40 @@ async function doCallTaxi() {
   try {
     var res = await apiPost("/api/call-taxi", {
       user_id:  USER_ID,
-      location: { lat: S.loc.lat, lng: S.loc.lng, address: S.addr }
+      location: { lat: S.loc.lat, lng: S.loc.lng, address: S.addr },
+      accept_fallback: acceptFallback,
+      group_id: groupId
     });
 
-    if (res.ok) {
+    if (res.ok && res.need_confirm) {
+      btn.disabled = false;
+      btn.textContent = "Taksi chaqirish!";
+      var km = res.distance_km ? " (" + res.distance_km + " km)" : "";
+      var wantsBack = confirm(
+        "Old o'rindiq hozircha band" + km + ".\n\n" +
+        "Orqa o'rindiqni xohlaysizmi? Orqa o'rindiq odatda arzonroq va " +
+        "quyoshdan yaxshiroq himoyalangan.\n\n" +
+        "OK — orqa o'rindiqqa roziman\nBekor qilish — old bo'sh mashinani kutaman"
+      );
+      if (wantsBack) {
+        await sendCallTaxi(true, res.group_id);
+      }
+      return;
+    }
+
+    if (res.ok && res.status === "matched") {
       S.tripId     = res.trip_id;
-      S.tripStatus = "searching";
-      document.getElementById("waitAddr").textContent = S.addr || "—";
-      goPage("p7");
-      startWaitTimer();
+      S.tripStatus = "matched";
+      fillDriverInfo(res);
+      goPage("p8");
       startPolling();
-    } else {
-      var errMsg = res.error || "Xato";
-      // Agar ro'yxat xatosi bo'lsa, foydalanuvchi buni bilsin
-      showToast(errMsg, true);
-      console.error("call-taxi error:", errMsg, "user_id:", USER_ID);
+    } else if (!res.ok) {
+      showToast(res.error || "Xato", true);
       btn.disabled = false;
       btn.textContent = "Taksi chaqirish!";
     }
   } catch (e) {
     showToast("Internet xatosi", true);
-    console.error("call-taxi exception:", e);
     btn.disabled = false;
     btn.textContent = "Taksi chaqirish!";
   }
@@ -1023,101 +1038,164 @@ async function doRate() {
   } catch (e) { showToast("Xato", true); }
 }
 
-// ── HAYDOVCHI BOSH ──────────────────────────────────────────────────
+// ── HAYDOVCHI BOSH / NAVBAT TIZIMI ───────────────────────────────────
+var Q = { front: false, back: 1 };
+var queuePollTimer = null;
+
 function showDriverHome() {
   var nm = document.getElementById("p11name");
   var cr = document.getElementById("p11car");
   if (nm) nm.textContent = USER_NAME || "Haydovchi";
   if (cr) cr.textContent = (S.carModel || "") + (S.carPlate ? " · " + S.carPlate : "");
   goPage("p11");
-  loadTrips();
+  refreshQueueStatus();
 }
 
-async function loadTrips() {
-  var list = document.getElementById("tripsList");
-  list.innerHTML = "<p style='color:var(--muted);font-size:13px;text-align:center;padding:8px'>Yuklanmoqda...</p>";
-  try {
-    var res = await apiGet("/api/trips/searching");
-    if (!res.ok || !res.trips || !res.trips.length) {
-      list.innerHTML = "<p style='color:var(--muted);font-size:13px;text-align:center;padding:12px'>Hozircha yo'lovchi yo'q</p>";
-      return;
-    }
-    var html = "";
-    for (var i = 0; i < res.trips.length; i++) {
-      var t = res.trips[i];
-      var seatTxt = (t.seat_pref === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
-      html += "<div class='trip-item'>";
-      html += "<h3>" + (t.name || "Yo'lovchi") + "</h3>";
-      html += "<p>📍 " + (t.p_addr || "—") + "</p>";
-      html += "<p>🪑 " + seatTxt + " &nbsp; 📱 " + (t.phone || "—") + "</p>";
-      html += "<button class='btn btn-green' style='margin-top:10px;margin-bottom:0' onclick='acceptTrip(" + t.id + ")'>Qabul qilish</button>";
-      html += "</div>";
-    }
-    list.innerHTML = html;
-  } catch (e) {
-    list.innerHTML = "<p style='color:var(--red);font-size:13px;text-align:center;padding:8px'>Internet xatosi</p>";
+function toggleFrontSeat() {
+  Q.front = !Q.front;
+  document.getElementById("frontToggle").classList.toggle("sel", Q.front);
+  document.getElementById("frontToggleTxt").textContent = Q.front ? "Ha" : "Yo'q";
+}
+
+function setBackSeats(n) {
+  Q.back = n;
+  for (var i = 0; i <= 3; i++) {
+    document.getElementById("bn" + i).classList.toggle("sel", i === n);
   }
 }
 
-async function acceptTrip(tripId) {
-  try {
-    var res = await apiPost("/api/accept-trip", { driver_id: USER_ID, trip_id: tripId });
-    if (res.ok) {
-      S.tripId = tripId; S.tripStatus = "matched";
-      var res2 = await apiPost("/api/user", { user_id: USER_ID });
-      if (res2.trip) {
-        S.activeDrvTrip = res2.trip;
-        showDriverTrip(res2.trip);
+// FIX: HAR SAFAR navbatga qo'shilganda YANGI GPS so'raladi — eski,
+// eskirib qolgan joylashuvga tayanilmaydi.
+function doJoinQueue() {
+  if (!Q.front && Q.back <= 0) { showToast("Kamida bitta o'rindiq belgilang", true); return; }
+  var btn = document.getElementById("joinQueueBtn");
+  btn.disabled = true;
+  btn.textContent = "Joylashuv aniqlanmoqda...";
+
+  if (!navigator.geolocation) {
+    btn.disabled = false; btn.textContent = "🚕 Navbatga qo'shilish";
+    showToast("GPS qo'llab-quvvatlanmaydi", true);
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    async function(p) {
+      try {
+        var res = await apiPost("/api/driver/join-queue", {
+          driver_id: USER_ID,
+          location: { lat: p.coords.latitude, lng: p.coords.longitude },
+          front_available: Q.front,
+          back_seats: Q.back
+        });
+        btn.disabled = false; btn.textContent = "🚕 Navbatga qo'shilish";
+        if (res.ok) {
+          showToast("Navbatga qo'shildingiz!");
+          showQueueActive();
+        } else {
+          showToast(res.error || "Xato", true);
+        }
+      } catch (e) {
+        btn.disabled = false; btn.textContent = "🚕 Navbatga qo'shilish";
+        showToast("Internet xatosi", true);
       }
-    } else {
-      showToast(res.error || "Xato", true);
-      loadTrips();
+    },
+    function() {
+      btn.disabled = false; btn.textContent = "🚕 Navbatga qo'shilish";
+      showToast("GPS kerak — joylashuvga ruxsat bering", true);
+    },
+    { timeout: 8000, enableHighAccuracy: true }
+  );
+}
+
+function showQueueActive() {
+  document.getElementById("queueJoinBox").style.display = "none";
+  document.getElementById("queueActiveBox").style.display = "block";
+  stopQueuePolling();
+  queuePollTimer = setInterval(refreshQueueStatus, 5000);
+  refreshQueueStatus();
+}
+
+function showQueueJoinForm() {
+  document.getElementById("queueJoinBox").style.display = "block";
+  document.getElementById("queueActiveBox").style.display = "none";
+  stopQueuePolling();
+}
+
+function stopQueuePolling() { clearInterval(queuePollTimer); }
+
+async function refreshQueueStatus() {
+  try {
+    var res = await fetch(API_URL + "/api/driver/group?driver_id=" + USER_ID);
+    var data = await res.json();
+    if (!data.ok) return;
+    if (!data.group) { showQueueJoinForm(); return; }
+
+    if (document.getElementById("queueActiveBox").style.display === "none") {
+      document.getElementById("queueJoinBox").style.display = "none";
+      document.getElementById("queueActiveBox").style.display = "block";
+      if (!queuePollTimer) { queuePollTimer = setInterval(refreshQueueStatus, 5000); }
     }
+    renderQueueUI(data.group, data.members || []);
+  } catch (e) { /* internet vaqtincha yo'q — keyingi pollingda urinamiz */ }
+}
+
+function renderQueueUI(group, members) {
+  var taken = group.total_seats - group.available_seats - (group.front_seat_available ? 1 : 0);
+  document.getElementById("queueSub").textContent = taken + "/" + group.total_seats + " band";
+
+  if (group.status === "started") {
+    document.getElementById("queueIco").textContent = "🚗";
+    document.getElementById("queueTtl").textContent = "Safar davom etmoqda";
+    document.getElementById("startGroupBtn").style.display = "none";
+    document.getElementById("finishGroupBtn").style.display = "block";
+  } else {
+    document.getElementById("queueIco").textContent = "🅿️";
+    document.getElementById("queueTtl").textContent = "Navbatda turibsiz";
+    document.getElementById("startGroupBtn").style.display = members.length ? "block" : "none";
+    document.getElementById("finishGroupBtn").style.display = "none";
+  }
+
+  var list = document.getElementById("queueMembersList");
+  if (!members.length) {
+    list.innerHTML = "<p style='color:var(--muted);font-size:13px;text-align:center;padding:12px 0'>Hali yo'lovchi yo'q</p>";
+    return;
+  }
+  var html = "";
+  for (var i = 0; i < members.length; i++) {
+    var m = members[i];
+    var seatTxt = (m.seat_position === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
+    html += "<div class='trip-item'>";
+    html += "<h3>" + (m.name || "Yo'lovchi") + "</h3>";
+    html += "<p>📍 " + (m.loc_addr || "—") + "</p>";
+    html += "<p>🪑 " + seatTxt + " &nbsp; 📱 " + (m.phone || "—") + "</p>";
+    html += "</div>";
+  }
+  list.innerHTML = html;
+}
+
+async function doStartGroup() {
+  try {
+    var res = await apiPost("/api/driver/start-group", { driver_id: USER_ID });
+    if (res.ok) { showToast("Yo'lga chiqdingiz!"); refreshQueueStatus(); }
+    else { showToast(res.error || "Xato", true); }
   } catch (e) { showToast("Xato", true); }
 }
 
-function showDriverTrip(trip) {
-  document.getElementById("paxName").textContent  = trip.passenger_name || trip.name || "Yo'lovchi";
-  document.getElementById("paxPhone").textContent = trip.passenger_phone || trip.phone || "—";
-  document.getElementById("paxAddr").textContent  = trip.p_addr || "—";
-  document.getElementById("paxSeat").textContent  = (trip.seat_pref === "front") ? "Old o'rindiq" : "Orqa o'rindiq";
-
-  if (trip.status === "matched") {
-    document.getElementById("drvIco").textContent = "✅";
-    document.getElementById("drvTtl").textContent = "Yo'lovchi kutmoqda";
-    document.getElementById("drvSub").textContent = "Yo'lovchi oldiga boring";
-    document.getElementById("drvActBtn").textContent = "Yo'lga chiqdik!";
-  } else if (trip.status === "started") {
-    document.getElementById("drvIco").textContent = "🚗";
-    document.getElementById("drvTtl").textContent = "Trip davom etmoqda";
-    document.getElementById("drvSub").textContent = "Manzilga yetib boring";
-    document.getElementById("drvActBtn").textContent = "Manzilga yetdik!";
-  }
-  goPage("p12");
-}
-
-async function driverAction() {
-  var trip = S.activeDrvTrip;
-  if (!trip) return;
-  var newStatus = (trip.status === "matched") ? "started" : "completed";
+async function doFinishGroup() {
+  if (!confirm("Safarni tugatmoqchimisiz?")) return;
   try {
-    await apiPost("/api/trip-status", { trip_id: trip.id, status: newStatus, driver_id: USER_ID });
-    trip.status = newStatus;
-    S.activeDrvTrip = trip;
-    if (newStatus === "started") {
-      showDriverTrip(trip);
-      showToast("Trip boshlandi!");
-    } else {
-      showToast("Trip yakunlandi!");
-      S.activeDrvTrip = null; S.tripId = null;
-      setTimeout(showDriverHome, 1200);
-    }
+    var res = await apiPost("/api/driver/finish-group", { driver_id: USER_ID });
+    if (res.ok) {
+      showToast("Safar tugadi!");
+      stopQueuePolling();
+      showQueueJoinForm();
+    } else { showToast(res.error || "Xato", true); }
   } catch (e) { showToast("Xato", true); }
 }
 
 // ── ROL O'ZGARTIRISH ────────────────────────────────────────────────
 function doChangeRole() {
-  S.role = null; S.phone = null; S.seatPref = null; S.seatCount = null;
+  stopQueuePolling();
+  S.role = null; S.phone = null; S.seatPref = null;
   goPage("p0");
 }
 

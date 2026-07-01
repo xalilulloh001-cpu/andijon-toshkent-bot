@@ -210,15 +210,23 @@ class Database:
             return None
 
     async def get_active_trip(self, user_id: int) -> Optional[dict]:
-        """Foydalanuvchining aktiv tripi (haydovchi yoki yo'lovchi)"""
+        """
+        Foydalanuvchining aktiv tripi (haydovchi yoki yo'lovchi).
+        FIX: avval haydovchi ismi/telefoni/mashinasi umuman qo'shilmagan
+        edi — yo'lovchi doim "Haydovchi" / "—" ko'rar edi. Endi JOIN
+        orqali haqiqiy ma'lumot qaytadi.
+        """
         if not self.pool:
             return None
         async with self.pool.acquire() as c:
             row = await c.fetchrow(
-                """SELECT * FROM trips
-                   WHERE (passenger_id=$1 OR driver_id=$1)
-                   AND status NOT IN ('completed','cancelled')
-                   ORDER BY created_at DESC LIMIT 1""",
+                """SELECT t.*, d.name AS driver_name, d.phone AS driver_phone,
+                          d.car_model, d.car_plate
+                   FROM trips t
+                   LEFT JOIN users d ON t.driver_id = d.user_id
+                   WHERE (t.passenger_id=$1 OR t.driver_id=$1)
+                   AND t.status NOT IN ('completed','cancelled')
+                   ORDER BY t.created_at DESC LIMIT 1""",
                 user_id
             )
             return dict(row) if row else None
