@@ -388,14 +388,18 @@ async def api_register(request: Request):
 async def call_taxi(request: Request):
     """
     Yo'lovchi taksi chaqiradi.
-    YANGI: endi tasodifiy haydovchilarga xabar tarqatish o'rniga,
-    yo'lovchi ENG YAQIN, navbatda turgan (bo'sh o'rindig'i bor)
-    haydovchining guruhiga avtomatik qo'shiladi.
+    YANGI: yo'lovchi ENG YAQIN, navbatda turgan haydovchining, o'zi
+    tanlagan o'rindiq turiga (old/orqa) mos guruhiga avtomatik qo'shiladi.
+    Agar old o'rindiq xohlab, hech qayerda old bo'sh bo'lmasa — orqa
+    o'rindiq taklif qilinadi (need_confirm=true), yo'lovchi rozi bo'lsa
+    group_id + accept_fallback=true bilan qayta so'rov yuboradi.
     """
     try:
-        body    = await request.json()
-        user_id = int(body.get("user_id", 0))
-        loc     = body.get("location", {})
+        body            = await request.json()
+        user_id         = int(body.get("user_id", 0))
+        loc             = body.get("location", {})
+        accept_fallback = bool(body.get("accept_fallback", False))
+        fallback_group  = body.get("group_id")
 
         user = await db.get_user(user_id)
         if not user:
@@ -416,30 +420,51 @@ async def call_taxi(request: Request):
                                  "status": existing["status"]})
 
         lat, lng, addr = loc.get("lat"), loc.get("lng"), loc.get("address", "")
+        seat_pref = user.get("seat_pref") or "back"
 
-        group = await db.find_nearest_group_with_space(lat, lng)
+        async def do_join(group_id, seat_type):
+            result = await db.join_group_atomic(group_id, user_id, lat, lng, addr, seat_type)
+            if result:
+                map_url = f"https://maps.google.com/?q={lat},{lng}"
+                try:
+                    await bot.send_message(
+                        result["driver_id"],
+                        f"🚕 *Yangi yo'lovchi qo'shildi!* ({result['taken_seats']}/{result['total_seats']})\n"
+                        f"📍 [{addr or 'Manzil'}]({map_url})",
+                        parse_mode="Markdown"
+                    )
+                except Exception:
+                    pass
+            return result
+
+        # Yo'lovchi orqa o'rindiqni taklifga rozi bo'ldi
+        if accept_fallback and fallback_group:
+            result = await do_join(int(fallback_group), "back")
+            if not result:
+                return JSONResponse({"ok": False, "error": "Bu joy allaqachon band bo'ldi, qayta urining"})
+            return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched"})
+
+        group = await db.find_nearest_group_with_space(lat, lng, seat_pref)
         if not group:
             return JSONResponse({"ok": False,
                 "error": "Hozircha navbatda haydovchi yo'q. Birozdan so'ng qayta urinib ko'ring."})
 
-        result = await db.join_group_atomic(group["id"], user_id, lat, lng, addr)
+        if group.get("_is_fallback"):
+            # Old o'rindiq hech qayerda bo'sh emas — orqa o'rindiqni taklif qilamiz
+            return JSONResponse({
+                "ok": True, "need_confirm": True, "fallback_seat": "back",
+                "group_id": group["id"], "driver_name": group.get("driver_name"),
+                "distance_km": group.get("_distance_km"),
+            })
+
+        result = await do_join(group["id"], seat_pref)
         if not result:
-            # Boshqa yo'lovchi bir zumda oxirgi o'rindiqni oldi — qayta urinib ko'ramiz
-            group2 = await db.find_nearest_group_with_space(lat, lng)
-            result = await db.join_group_atomic(group2["id"], user_id, lat, lng, addr) if group2 else None
+            # Boshqa yo'lovchi bir zumda oldi — qayta izlaymiz
+            group2 = await db.find_nearest_group_with_space(lat, lng, seat_pref)
+            if group2 and not group2.get("_is_fallback"):
+                result = await do_join(group2["id"], seat_pref)
         if not result:
             return JSONResponse({"ok": False, "error": "Bo'sh joy topilmadi, qayta urining"})
-
-        map_url = f"https://maps.google.com/?q={lat},{lng}"
-        try:
-            await bot.send_message(
-                result["driver_id"],
-                f"🚕 *Yangi yo'lovchi qo'shildi!* ({result['total_seats'] - result['available_seats']}/{result['total_seats']})\n"
-                f"📍 [{addr or 'Manzil'}]({map_url})",
-                parse_mode="Markdown"
-            )
-        except Exception:
-            pass
 
         return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched"})
     except Exception as e:
@@ -451,23 +476,28 @@ async def call_taxi(request: Request):
 async def driver_join_queue(request: Request):
     """
     YANGI: Haydovchi 'Navbatga qo'shilish' tugmasini bosganda chaqiriladi.
-    Har safar YANGI GPS joylashuvi olinadi — eski, eskirib qolgan
-    joylashuvga tayanilmaydi.
+    Har safar YANGI GPS joylashuvi VA yangi o'rindiq sozlamasi
+    (old bormi, orqada nechta) olinadi — ro'yxatdan o'tishdagi eski
+    songa tayanilmaydi.
     """
     try:
-        body      = await request.json()
-        driver_id = int(body.get("driver_id", 0))
-        loc       = body.get("location", {})
-        lat, lng  = loc.get("lat"), loc.get("lng")
+        body            = await request.json()
+        driver_id       = int(body.get("driver_id", 0))
+        loc             = body.get("location", {})
+        lat, lng        = loc.get("lat"), loc.get("lng")
+        front_available = bool(body.get("front_available", False))
+        back_seats      = int(body.get("back_seats", 0))
         if lat is None or lng is None:
             return JSONResponse({"ok": False, "error": "Joylashuv kerak"})
+        if not front_available and back_seats <= 0:
+            return JSONResponse({"ok": False, "error": "Kamida bitta o'rindiq belgilang"})
 
         is_banned, ban_info = await db.check_if_banned(driver_id)
         if is_banned:
             reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
             return JSONResponse({"ok": False, "error": f"Hisobingiz bloklangan: {reason}"})
 
-        group = await db.join_queue(driver_id, lat, lng)
+        group = await db.join_queue(driver_id, lat, lng, front_available, back_seats)
         if not group:
             return JSONResponse({"ok": False, "error": "Navbatga qo'shilishda xato"})
         return JSONResponse({"ok": True, "group": group})

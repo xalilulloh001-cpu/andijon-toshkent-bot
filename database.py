@@ -556,32 +556,38 @@ class Database:
 
     # ===== HAYDOVCHI NAVBATI (QUEUE) =====
 
-    async def join_queue(self, driver_id: int, lat: float, lng: float) -> Optional[dict]:
+    async def join_queue(self, driver_id: int, lat: float, lng: float,
+                          front_available: bool, back_seats: int) -> Optional[dict]:
         """
         FIX/YANGI: Haydovchi 'Navbatga qo'shilish' tugmasini bosganda
-        chaqiriladi. Agar u allaqachon faol guruhga ega bo'lsa (masalan
-        ilovani yopib qayta ochgan bo'lsa), o'sha guruhning joylashuvini
-        yangilaydi. Aks holda YANGI guruh ochadi — sig'imi haydovchining
-        ro'yxatdan o'tishda ko'rsatgan o'rindiq soniga teng.
+        chaqiriladi. Endi o'rindiq soni ro'yxatdan o'tishdagi qiymatdan
+        emas, balki HAR SAFAR o'zi belgilagan qiymatdan olinadi — chunki
+        haydovchi bugun 2 kishi, ertaga 4 kishi olishni xohlashi mumkin.
+        Old va orqa o'rindiqlar ALOHIDA boshqariladi (old — 1 dona
+        band/bo'sh resurs, orqa — bir nechta joy).
         """
         if not self.pool:
             return None
         try:
+            back_seats = max(0, min(3, int(back_seats)))
+            total = back_seats + (1 if front_available else 0)
             async with self.pool.acquire() as c:
-                driver = await c.fetchrow("SELECT seat_count FROM users WHERE user_id=$1", driver_id)
-                seats = (driver["seat_count"] if driver and driver["seat_count"] else 4)
-
                 existing = await c.fetchrow(
                     "SELECT id FROM groups WHERE driver_id=$1 AND status='active'", driver_id
                 )
                 if existing:
-                    await c.execute("UPDATE groups SET lat=$2, lng=$3 WHERE id=$1", existing["id"], lat, lng)
                     gid = existing["id"]
+                    await c.execute(
+                        """UPDATE groups SET lat=$2, lng=$3, total_seats=$4,
+                           available_seats=$5, front_seat_available=$6 WHERE id=$1""",
+                        gid, lat, lng, total, back_seats, front_available
+                    )
                 else:
                     gid = await c.fetchval(
-                        """INSERT INTO groups (driver_id, region, total_seats, available_seats, lat, lng, status)
-                           VALUES ($1,'umumiy',$2,$2,$3,$4,'active') RETURNING id""",
-                        driver_id, seats, lat, lng
+                        """INSERT INTO groups (driver_id, region, total_seats, available_seats,
+                                                front_seat_available, lat, lng, status)
+                           VALUES ($1,'umumiy',$2,$3,$4,$5,$6,'active') RETURNING id""",
+                        driver_id, total, back_seats, front_available, lat, lng
                     )
                 await c.execute(
                     "UPDATE users SET is_online=TRUE, loc_lat=$2, loc_lng=$3 WHERE user_id=$1",
@@ -603,8 +609,15 @@ class Database:
             )
             return dict(row) if row else None
 
-    async def find_nearest_group_with_space(self, lat: float, lng: float, max_km: float = 60) -> Optional[dict]:
-        """Yo'lovchiga eng yaqin, bo'sh o'rindig'i bor FAOL guruhni topadi."""
+    async def find_nearest_group_with_space(self, lat: float, lng: float, seat_pref: str, max_km: float = 60) -> Optional[dict]:
+        """
+        Yo'lovchiga eng yaqin, mos o'rindig'i bor FAOL guruhni topadi.
+        FIX: endi umumiy "bo'sh joy" emas, balki yo'lovchi xohlagan
+        o'rindiq TURI (old yoki orqa) bo'yicha qidiradi. Agar yo'lovchi
+        old o'rindiq xohlab, hech bir guruhda old bo'sh bo'lmasa —
+        eng yaqin ORQA joyi bor guruh "taklif" sifatida qaytariladi
+        (is_fallback=True), frontend buni foydalanuvchiga so'raydi.
+        """
         if not self.pool:
             return None
         async with self.pool.acquire() as c:
@@ -612,50 +625,74 @@ class Database:
                 """SELECT g.*, u.name AS driver_name, u.phone AS driver_phone,
                           u.car_model, u.car_plate
                    FROM groups g JOIN users u ON g.driver_id = u.user_id
-                   WHERE g.status='active' AND g.available_seats > 0"""
+                   WHERE g.status='active' AND (g.available_seats > 0 OR g.front_seat_available = TRUE)"""
             )
-        best, best_dist = None, max_km + 1
+        exact_best, exact_dist = None, max_km + 1
+        fallback_best, fallback_dist = None, max_km + 1
         for r in rows:
             d = dict(r)
             dist = self._haversine_km(lat, lng, d.get("lat"), d.get("lng"))
-            if dist < best_dist:
-                best, best_dist = d, dist
-        if best:
-            best["_distance_km"] = round(best_dist, 1)
-        return best
+            wants_front = (seat_pref == "front")
+            has_front = bool(d.get("front_seat_available"))
+            has_back = (d.get("available_seats") or 0) > 0
+            if wants_front and has_front and dist < exact_dist:
+                exact_best, exact_dist = d, dist
+            elif (not wants_front) and has_back and dist < exact_dist:
+                exact_best, exact_dist = d, dist
+            elif wants_front and has_back and dist < fallback_dist:
+                fallback_best, fallback_dist = d, dist
+        if exact_best:
+            exact_best["_distance_km"] = round(exact_dist, 1)
+            exact_best["_is_fallback"] = False
+            return exact_best
+        if fallback_best:
+            fallback_best["_distance_km"] = round(fallback_dist, 1)
+            fallback_best["_is_fallback"] = True
+            return fallback_best
+        return None
 
-    async def join_group_atomic(self, group_id: int, passenger_id: int, p_lat, p_lng, p_addr) -> Optional[dict]:
+    async def join_group_atomic(self, group_id: int, passenger_id: int, p_lat, p_lng, p_addr, seat_pref: str) -> Optional[dict]:
         """
-        FIX: Atomic — bo'sh o'rindiq faqat BITTA marta band qilinadi,
-        ikkita yo'lovchi bir vaqtda oxirgi o'rindiqni "urib ketolmaydi".
-        Muvaffaqiyatli bo'lsa yangi trip yaratadi va guruhga bog'laydi.
+        FIX: Atomic — old o'rindiq (1 dona) yoki orqa o'rindiq (necha
+        dona) faqat BITTA marta band qilinadi, ikkita yo'lovchi bir
+        vaqtda "urib ketolmaydi". Muvaffaqiyatli bo'lsa yangi trip
+        yaratadi va guruhga bog'laydi.
         """
         if not self.pool:
             return None
         try:
             async with self.pool.acquire() as c:
                 async with c.transaction():
-                    row = await c.fetchrow(
-                        """UPDATE groups SET available_seats = available_seats - 1
-                           WHERE id=$1 AND status='active' AND available_seats > 0
-                           RETURNING id, driver_id, total_seats, available_seats""",
-                        group_id
-                    )
+                    if seat_pref == "front":
+                        row = await c.fetchrow(
+                            """UPDATE groups SET front_seat_available = FALSE
+                               WHERE id=$1 AND status='active' AND front_seat_available = TRUE
+                               RETURNING id, driver_id, total_seats, available_seats, front_seat_available""",
+                            group_id
+                        )
+                    else:
+                        row = await c.fetchrow(
+                            """UPDATE groups SET available_seats = available_seats - 1
+                               WHERE id=$1 AND status='active' AND available_seats > 0
+                               RETURNING id, driver_id, total_seats, available_seats, front_seat_available""",
+                            group_id
+                        )
                     if not row:
                         return None
                     await c.execute(
-                        """INSERT INTO group_members (group_id, passenger_id, status)
-                           VALUES ($1,$2,'confirmed')""",
-                        group_id, passenger_id
+                        """INSERT INTO group_members (group_id, passenger_id, seat_position, status)
+                           VALUES ($1,$2,$3,'confirmed')""",
+                        group_id, passenger_id, seat_pref
                     )
                     trip_id = await c.fetchval(
                         """INSERT INTO trips (passenger_id, driver_id, group_id, p_lat, p_lng, p_addr, status, matched_at)
                            VALUES ($1,$2,$3,$4,$5,$6,'matched',NOW()) RETURNING id""",
                         passenger_id, row["driver_id"], group_id, p_lat, p_lng, p_addr
                     )
+            taken = row["total_seats"] - row["available_seats"] - (1 if row["front_seat_available"] else 0)
             return {
                 "trip_id": trip_id, "driver_id": row["driver_id"],
-                "total_seats": row["total_seats"], "available_seats": row["available_seats"]
+                "total_seats": row["total_seats"], "taken_seats": taken
             }
         except Exception as e:
             logger.error(f"join_group_atomic error: {e}")
