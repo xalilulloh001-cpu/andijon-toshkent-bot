@@ -386,7 +386,12 @@ async def api_register(request: Request):
 
 @app.post("/api/call-taxi")
 async def call_taxi(request: Request):
-    """Yo'lovchi taksi chaqiradi"""
+    """
+    Yo'lovchi taksi chaqiradi.
+    YANGI: endi tasodifiy haydovchilarga xabar tarqatish o'rniga,
+    yo'lovchi ENG YAQIN, navbatda turgan (bo'sh o'rindig'i bor)
+    haydovchining guruhiga avtomatik qo'shiladi.
+    """
     try:
         body    = await request.json()
         user_id = int(body.get("user_id", 0))
@@ -400,43 +405,139 @@ async def call_taxi(request: Request):
             logger.warning(f"/api/call-taxi: registered=False user_id={user_id} user={dict(user)}")
             return JSONResponse({"ok": False, "error": "Ro'yxat tugallanmagan, ilovani yopib qayta oching"})
 
-        # FIX: bloklangan foydalanuvchi taksi chaqira olmaydi
         is_banned, ban_info = await db.check_if_banned(user_id)
         if is_banned:
             reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
             return JSONResponse({"ok": False, "error": f"Hisobingiz bloklangan: {reason}"})
 
-        # Aktiv trip bormi?
         existing = await db.get_active_trip(user_id)
         if existing:
             return JSONResponse({"ok": True, "trip_id": existing["id"],
                                  "status": existing["status"]})
 
-        trip_id = await db.create_trip(
-            user_id,
-            loc.get("lat"), loc.get("lng"), loc.get("address","")
-        )
-        if not trip_id:
-            return JSONResponse({"ok": False, "error": "Trip yaratishda xato, qayta urining"})
+        lat, lng, addr = loc.get("lat"), loc.get("lng"), loc.get("address", "")
 
-        # FIX: birinchi 5 ta emas — ENG YAQIN haydovchilarga xabar beriladi
-        nearby = await db.get_nearby_drivers(loc.get("lat"), loc.get("lng"), limit=5)
-        map_url = f"https://maps.google.com/?q={loc.get('lat')},{loc.get('lng')}"
-        for driver in nearby:
-            try:
-                await bot.send_message(
-                    driver["user_id"],
-                    f"🚕 *Yangi yo'lovchi!* ({driver['_distance_km']} km)\n"
-                    f"📍 [{loc.get('address','Manzil')}]({map_url})\n"
-                    f"Ilovada qabul qiling 👇",
-                    parse_mode="Markdown"
-                )
-            except Exception:
-                pass
+        group = await db.find_nearest_group_with_space(lat, lng)
+        if not group:
+            return JSONResponse({"ok": False,
+                "error": "Hozircha navbatda haydovchi yo'q. Birozdan so'ng qayta urinib ko'ring."})
 
-        return JSONResponse({"ok": True, "trip_id": trip_id, "status": "searching"})
+        result = await db.join_group_atomic(group["id"], user_id, lat, lng, addr)
+        if not result:
+            # Boshqa yo'lovchi bir zumda oxirgi o'rindiqni oldi — qayta urinib ko'ramiz
+            group2 = await db.find_nearest_group_with_space(lat, lng)
+            result = await db.join_group_atomic(group2["id"], user_id, lat, lng, addr) if group2 else None
+        if not result:
+            return JSONResponse({"ok": False, "error": "Bo'sh joy topilmadi, qayta urining"})
+
+        map_url = f"https://maps.google.com/?q={lat},{lng}"
+        try:
+            await bot.send_message(
+                result["driver_id"],
+                f"🚕 *Yangi yo'lovchi qo'shildi!* ({result['total_seats'] - result['available_seats']}/{result['total_seats']})\n"
+                f"📍 [{addr or 'Manzil'}]({map_url})",
+                parse_mode="Markdown"
+            )
+        except Exception:
+            pass
+
+        return JSONResponse({"ok": True, "trip_id": result["trip_id"], "status": "matched"})
     except Exception as e:
         logger.error(f"/api/call-taxi error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+@app.post("/api/driver/join-queue")
+async def driver_join_queue(request: Request):
+    """
+    YANGI: Haydovchi 'Navbatga qo'shilish' tugmasini bosganda chaqiriladi.
+    Har safar YANGI GPS joylashuvi olinadi — eski, eskirib qolgan
+    joylashuvga tayanilmaydi.
+    """
+    try:
+        body      = await request.json()
+        driver_id = int(body.get("driver_id", 0))
+        loc       = body.get("location", {})
+        lat, lng  = loc.get("lat"), loc.get("lng")
+        if lat is None or lng is None:
+            return JSONResponse({"ok": False, "error": "Joylashuv kerak"})
+
+        is_banned, ban_info = await db.check_if_banned(driver_id)
+        if is_banned:
+            reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
+            return JSONResponse({"ok": False, "error": f"Hisobingiz bloklangan: {reason}"})
+
+        group = await db.join_queue(driver_id, lat, lng)
+        if not group:
+            return JSONResponse({"ok": False, "error": "Navbatga qo'shilishda xato"})
+        return JSONResponse({"ok": True, "group": group})
+    except Exception as e:
+        logger.error(f"/api/driver/join-queue error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+@app.get("/api/driver/group")
+async def driver_group(driver_id: int):
+    """Haydovchining joriy guruh holati (necha yo'lovchi qo'shilgani)"""
+    try:
+        group = await db.get_driver_active_group(driver_id)
+        if not group:
+            return JSONResponse({"ok": True, "group": None, "members": []})
+        members = await db.get_group_members(group["id"])
+        return JSONResponse({"ok": True, "group": group, "members": members})
+    except Exception as e:
+        logger.error(f"/api/driver/group error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+@app.post("/api/driver/start-group")
+async def driver_start_group(request: Request):
+    """Haydovchi 'Yo'lga chiqamiz!' bosganda — guruhdagi barcha yo'lovchilar uchun trip boshlanadi"""
+    try:
+        body      = await request.json()
+        driver_id = int(body.get("driver_id", 0))
+        group = await db.start_group(driver_id)
+        if not group:
+            return JSONResponse({"ok": False, "error": "Faol guruh topilmadi"})
+
+        members = await db.get_group_members(group["id"])
+        for m in members:
+            try:
+                await bot.send_message(m["passenger_id"],
+                    "🚗 *Trip boshlandi!* Haydovchi yo'lda.", parse_mode="Markdown")
+            except Exception:
+                pass
+        return JSONResponse({"ok": True, "group": group})
+    except Exception as e:
+        logger.error(f"/api/driver/start-group error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+@app.post("/api/driver/finish-group")
+async def driver_finish_group(request: Request):
+    """
+    Haydovchi 'Safar tugadi!' bosganda — barcha yo'lovchilar uchun trip
+    yakunlanadi VA haydovchi AVTOMATIK navbatdan chiqariladi (is_online=false).
+    Qayta yo'lovchi olish uchun yana 'Navbatga qo'shilish' bosishi kerak.
+    """
+    try:
+        body      = await request.json()
+        driver_id = int(body.get("driver_id", 0))
+        group = await db.finish_group(driver_id)
+        if not group:
+            return JSONResponse({"ok": False, "error": "Faol guruh topilmadi"})
+
+        members = await db.get_group_members(group["id"])
+        for m in members:
+            try:
+                await bot.send_message(m["passenger_id"],
+                    "🎉 *Manzilga yetib keldingiz!*\nHaydovchiga baho bering — ilovani oching 👇",
+                    parse_mode="Markdown")
+            except Exception:
+                pass
+        return JSONResponse({"ok": True, "group": group})
+    except Exception as e:
+        logger.error(f"/api/driver/finish-group error: {e}")
         return JSONResponse({"ok": False, "error": str(e)})
 
 

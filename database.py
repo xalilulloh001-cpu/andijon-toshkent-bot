@@ -154,6 +154,9 @@ class Database:
 
             ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE;
             ALTER TABLE users ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP;
+            ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+            ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+            ALTER TABLE trips ADD COLUMN IF NOT EXISTS group_id INT REFERENCES groups(id);
             """)
         logger.info("✅ Jadvallar tayyor")
 
@@ -550,6 +553,163 @@ class Database:
                 group_id
             )
             return [dict(r) for r in rows]
+
+    # ===== HAYDOVCHI NAVBATI (QUEUE) =====
+
+    async def join_queue(self, driver_id: int, lat: float, lng: float) -> Optional[dict]:
+        """
+        FIX/YANGI: Haydovchi 'Navbatga qo'shilish' tugmasini bosganda
+        chaqiriladi. Agar u allaqachon faol guruhga ega bo'lsa (masalan
+        ilovani yopib qayta ochgan bo'lsa), o'sha guruhning joylashuvini
+        yangilaydi. Aks holda YANGI guruh ochadi — sig'imi haydovchining
+        ro'yxatdan o'tishda ko'rsatgan o'rindiq soniga teng.
+        """
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as c:
+                driver = await c.fetchrow("SELECT seat_count FROM users WHERE user_id=$1", driver_id)
+                seats = (driver["seat_count"] if driver and driver["seat_count"] else 4)
+
+                existing = await c.fetchrow(
+                    "SELECT id FROM groups WHERE driver_id=$1 AND status='active'", driver_id
+                )
+                if existing:
+                    await c.execute("UPDATE groups SET lat=$2, lng=$3 WHERE id=$1", existing["id"], lat, lng)
+                    gid = existing["id"]
+                else:
+                    gid = await c.fetchval(
+                        """INSERT INTO groups (driver_id, region, total_seats, available_seats, lat, lng, status)
+                           VALUES ($1,'umumiy',$2,$2,$3,$4,'active') RETURNING id""",
+                        driver_id, seats, lat, lng
+                    )
+                await c.execute(
+                    "UPDATE users SET is_online=TRUE, loc_lat=$2, loc_lng=$3 WHERE user_id=$1",
+                    driver_id, lat, lng
+                )
+            return await self.get_group(gid)
+        except Exception as e:
+            logger.error(f"join_queue error: {e}")
+            return None
+
+    async def get_driver_active_group(self, driver_id: int) -> Optional[dict]:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as c:
+            row = await c.fetchrow(
+                "SELECT * FROM groups WHERE driver_id=$1 AND status IN ('active','started') "
+                "ORDER BY created_at DESC LIMIT 1",
+                driver_id
+            )
+            return dict(row) if row else None
+
+    async def find_nearest_group_with_space(self, lat: float, lng: float, max_km: float = 60) -> Optional[dict]:
+        """Yo'lovchiga eng yaqin, bo'sh o'rindig'i bor FAOL guruhni topadi."""
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as c:
+            rows = await c.fetch(
+                """SELECT g.*, u.name AS driver_name, u.phone AS driver_phone,
+                          u.car_model, u.car_plate
+                   FROM groups g JOIN users u ON g.driver_id = u.user_id
+                   WHERE g.status='active' AND g.available_seats > 0"""
+            )
+        best, best_dist = None, max_km + 1
+        for r in rows:
+            d = dict(r)
+            dist = self._haversine_km(lat, lng, d.get("lat"), d.get("lng"))
+            if dist < best_dist:
+                best, best_dist = d, dist
+        if best:
+            best["_distance_km"] = round(best_dist, 1)
+        return best
+
+    async def join_group_atomic(self, group_id: int, passenger_id: int, p_lat, p_lng, p_addr) -> Optional[dict]:
+        """
+        FIX: Atomic — bo'sh o'rindiq faqat BITTA marta band qilinadi,
+        ikkita yo'lovchi bir vaqtda oxirgi o'rindiqni "urib ketolmaydi".
+        Muvaffaqiyatli bo'lsa yangi trip yaratadi va guruhga bog'laydi.
+        """
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as c:
+                async with c.transaction():
+                    row = await c.fetchrow(
+                        """UPDATE groups SET available_seats = available_seats - 1
+                           WHERE id=$1 AND status='active' AND available_seats > 0
+                           RETURNING id, driver_id, total_seats, available_seats""",
+                        group_id
+                    )
+                    if not row:
+                        return None
+                    await c.execute(
+                        """INSERT INTO group_members (group_id, passenger_id, status)
+                           VALUES ($1,$2,'confirmed')""",
+                        group_id, passenger_id
+                    )
+                    trip_id = await c.fetchval(
+                        """INSERT INTO trips (passenger_id, driver_id, group_id, p_lat, p_lng, p_addr, status, matched_at)
+                           VALUES ($1,$2,$3,$4,$5,$6,'matched',NOW()) RETURNING id""",
+                        passenger_id, row["driver_id"], group_id, p_lat, p_lng, p_addr
+                    )
+            return {
+                "trip_id": trip_id, "driver_id": row["driver_id"],
+                "total_seats": row["total_seats"], "available_seats": row["available_seats"]
+            }
+        except Exception as e:
+            logger.error(f"join_group_atomic error: {e}")
+            return None
+
+    async def start_group(self, driver_id: int) -> Optional[dict]:
+        """Haydovchi 'Yo'lga chiqamiz!' bosganda — guruhdagi barcha triplar boshlanadi."""
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as c:
+                group = await c.fetchrow(
+                    "SELECT id FROM groups WHERE driver_id=$1 AND status='active'", driver_id
+                )
+                if not group:
+                    return None
+                await c.execute("UPDATE groups SET status='started' WHERE id=$1", group["id"])
+                await c.execute(
+                    "UPDATE trips SET status='started', started_at=NOW() "
+                    "WHERE group_id=$1 AND status NOT IN ('completed','cancelled')",
+                    group["id"]
+                )
+            return await self.get_group(group["id"])
+        except Exception as e:
+            logger.error(f"start_group error: {e}")
+            return None
+
+    async def finish_group(self, driver_id: int) -> Optional[dict]:
+        """
+        FIX: Trip tugagach haydovchi AVTOMATIK navbatdan chiqariladi.
+        Qayta yo'lovchi olish uchun yana 'Navbatga qo'shilish' bosishi kerak.
+        """
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as c:
+                group = await c.fetchrow(
+                    "SELECT id FROM groups WHERE driver_id=$1 AND status IN ('active','started') "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    driver_id
+                )
+                if not group:
+                    return None
+                await c.execute("UPDATE groups SET status='completed' WHERE id=$1", group["id"])
+                await c.execute(
+                    "UPDATE trips SET status='completed', completed_at=NOW() "
+                    "WHERE group_id=$1 AND status NOT IN ('completed','cancelled')",
+                    group["id"]
+                )
+                await c.execute("UPDATE users SET is_online=FALSE WHERE user_id=$1", driver_id)
+            return await self.get_group(group["id"])
+        except Exception as e:
+            logger.error(f"finish_group error: {e}")
+            return None
 
     # ===== WEBSOCKET / DRIVER ONLINE STATUS =====
 
