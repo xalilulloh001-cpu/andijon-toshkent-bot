@@ -5,6 +5,7 @@ Foydalanuvchilar, triplar, baholar saqlanadi
 import logging
 import asyncpg
 import os
+import math
 from datetime import datetime
 from typing import Optional
 
@@ -15,6 +16,25 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 class Database:
     def __init__(self):
         self.pool = None
+
+    @staticmethod
+    def normalize_phone(phone: str) -> Optional[str]:
+        """
+        FIX: Telefon raqamini tekshiradi va standart shaklga keltiradi.
+        Noto'g'ri raqam bo'lsa None qaytaradi (ro'yxatdan o'tkazilmaydi).
+        O'zbekiston raqami: +998 XX XXX XX XX (9 ta raqam, 998 dan keyin)
+        """
+        if not phone:
+            return None
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        if digits.startswith("998") and len(digits) == 12:
+            return "+" + digits
+        if len(digits) == 9:
+            return "+998" + digits
+        if digits.startswith("8") and len(digits) == 10:
+            return "+998" + digits[1:]
+        return None
+
 
     async def init(self):
         if not DATABASE_URL:
@@ -215,6 +235,27 @@ class Database:
             logger.error(f"update_trip error: {e}")
             return False
 
+    async def accept_trip_atomic(self, trip_id: int, driver_id: int) -> bool:
+        """
+        FIX: Bitta so'rovda tekshiradi VA yozadi (atomic).
+        Ikkita haydovchi bir vaqtda 'qabul qilish' bossa ham,
+        faqat BITTASI muvaffaqiyatli bo'ladi.
+        """
+        if not self.pool:
+            return False
+        try:
+            async with self.pool.acquire() as c:
+                row = await c.fetchrow(
+                    """UPDATE trips SET driver_id=$2, status='matched', matched_at=NOW()
+                       WHERE id=$1 AND status='searching'
+                       RETURNING id""",
+                    trip_id, driver_id
+                )
+            return row is not None
+        except Exception as e:
+            logger.error(f"accept_trip_atomic error: {e}")
+            return False
+
     async def get_trip(self, trip_id: int) -> Optional[dict]:
         if not self.pool:
             return None
@@ -251,6 +292,33 @@ class Database:
                    ORDER BY u.updated_at DESC"""
             )
             return [dict(r) for r in rows]
+
+    @staticmethod
+    def _haversine_km(lat1, lng1, lat2, lng2) -> float:
+        """Ikki nuqta orasidagi masofa (km)"""
+        if None in (lat1, lng1, lat2, lng2):
+            return 999999.0
+        R = 6371
+        p1, p2 = math.radians(lat1), math.radians(lat2)
+        dlat = math.radians(lat2 - lat1)
+        dlng = math.radians(lng2 - lng1)
+        a = math.sin(dlat/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dlng/2)**2
+        return R * 2 * math.asin(math.sqrt(a))
+
+    async def get_nearby_drivers(self, lat: float, lng: float, limit: int = 5, max_km: float = 60) -> list:
+        """
+        FIX: Tasodifiy 5 ta emas, YO'LOVCHIGA ENG YAQIN haydovchilarni qaytaradi.
+        max_km dan uzoqdagilar chetlab o'tiladi.
+        """
+        drivers = await self.get_available_drivers()
+        with_dist = []
+        for d in drivers:
+            dist = self._haversine_km(lat, lng, d.get("loc_lat"), d.get("loc_lng"))
+            if dist <= max_km:
+                d["_distance_km"] = round(dist, 1)
+                with_dist.append(d)
+        with_dist.sort(key=lambda d: d["_distance_km"])
+        return with_dist[:limit]
 
     # ===== BAN SYSTEM =====
 

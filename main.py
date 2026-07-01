@@ -31,7 +31,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL",
     "https://xalilulloh001-cpu.github.io/andijon-toshkent-bot/webapp.html")
 PORT       = int(os.getenv("PORT","8000"))
 API_BASE   = os.getenv("RAILWAY_PUBLIC_DOMAIN",
-    "andijon-toshkent-bot-production.up.railway.app")
+    "andijon-toshkent-bot2-production.up.railway.app")
 
 ALLOWED_ORIGINS = [
     "https://xalilulloh001-cpu.github.io",
@@ -101,12 +101,23 @@ async def on_webapp_data(msg: types.Message):
         # ─── RO'YXATDAN O'TISH ───
         if action == "register":
             role       = data.get("role", "passenger")
-            phone      = data.get("phone", "")
+            phone_raw  = data.get("phone", "")
             loc        = data.get("location", {})
             seat_pref  = data.get("seat_pref")
             seat_count = data.get("seat_count")
             car_model  = data.get("car_model", "")
             car_plate  = data.get("car_plate", "")
+
+            phone = db.normalize_phone(phone_raw)
+            if not phone:
+                await msg.answer("❌ Telefon raqami noto'g'ri. Masalan: +998901234567")
+                return
+
+            is_banned, ban_info = await db.check_if_banned(user_id)
+            if is_banned:
+                reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
+                await msg.answer(f"🚫 Hisobingiz bloklangan: {reason}")
+                return
 
             await db.save_user(
                 user_id,
@@ -148,6 +159,12 @@ async def on_webapp_data(msg: types.Message):
             lng  = loc.get("lng")
             addr = loc.get("address", "Noma'lum")
 
+            is_banned, ban_info = await db.check_if_banned(user_id)
+            if is_banned:
+                reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
+                await msg.answer(f"🚫 Hisobingiz bloklangan: {reason}")
+                return
+
             trip_id = await db.create_trip(user_id, lat, lng, addr)
             if not trip_id:
                 await msg.answer("❌ Trip yaratishda xato. Qayta urining.")
@@ -160,6 +177,19 @@ async def on_webapp_data(msg: types.Message):
                 f"Ilovada jarayonni ko'rishingiz mumkin.",
                 parse_mode="Markdown"
             )
+
+            # FIX: birinchi 5 ta emas — ENG YAQIN haydovchilarga xabar beriladi
+            nearby = await db.get_nearby_drivers(lat, lng, limit=5)
+            for driver in nearby:
+                try:
+                    map_url = f"https://maps.google.com/?q={lat},{lng}"
+                    await bot.send_message(driver["user_id"],
+                        f"🚕 *Yangi buyurtma #{trip_id}* ({driver['_distance_km']} km)\n"
+                        f"👤 {name} | `{user_id}`\n"
+                        f"📍 [{addr}]({map_url})",
+                        parse_mode="Markdown")
+                except Exception:
+                    pass
 
             for aid in ADMIN_IDS:
                 try:
@@ -289,12 +319,23 @@ async def api_register(request: Request):
 
         name       = body.get("name", "Foydalanuvchi")
         role       = body.get("role", "passenger")
-        phone      = body.get("phone", "")
+        phone_raw  = body.get("phone", "")
         loc        = body.get("location", {})
         seat_pref  = body.get("seat_pref")
         seat_count = body.get("seat_count")
         car_model  = body.get("car_model", "")
         car_plate  = body.get("car_plate", "")
+
+        # FIX: telefon raqamini tekshirish — noto'g'ri format qabul qilinmaydi
+        phone = db.normalize_phone(phone_raw)
+        if not phone:
+            return JSONResponse({"ok": False, "error": "Telefon raqami noto'g'ri. Masalan: +998901234567"})
+
+        # FIX: bloklangan foydalanuvchi ro'yxatdan o'ta olmaydi
+        is_banned, ban_info = await db.check_if_banned(user_id)
+        if is_banned:
+            reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
+            return JSONResponse({"ok": False, "error": f"Hisobingiz bloklangan: {reason}"})
 
         ok = await db.save_user(
             user_id,
@@ -315,8 +356,8 @@ async def api_register(request: Request):
         role_txt = "🚗 Haydovchi" if role == "driver" else "👤 Yo'lovchi"
         if not ok:
             logger.error(f"/api/register: save_user FAILED user_id={user_id}")
-            return JSONResponse({{"ok": False, "error": "DB xato, qayta urining"}})
-        logger.info(f"Registered OK: {{role_txt}} user={{user_id}}")
+            return JSONResponse({"ok": False, "error": "DB xato, qayta urining"})
+        logger.info(f"Registered OK: {role_txt} user={user_id}")
 
         # Bot orqali xabar (ixtiyoriy — xato bo'lsa ham ok qaytaramiz)
         try:
@@ -359,6 +400,12 @@ async def call_taxi(request: Request):
             logger.warning(f"/api/call-taxi: registered=False user_id={user_id} user={dict(user)}")
             return JSONResponse({"ok": False, "error": "Ro'yxat tugallanmagan, ilovani yopib qayta oching"})
 
+        # FIX: bloklangan foydalanuvchi taksi chaqira olmaydi
+        is_banned, ban_info = await db.check_if_banned(user_id)
+        if is_banned:
+            reason = ban_info.get("reason", "sabab ko'rsatilmagan") if ban_info else ""
+            return JSONResponse({"ok": False, "error": f"Hisobingiz bloklangan: {reason}"})
+
         # Aktiv trip bormi?
         existing = await db.get_active_trip(user_id)
         if existing:
@@ -369,15 +416,17 @@ async def call_taxi(request: Request):
             user_id,
             loc.get("lat"), loc.get("lng"), loc.get("address","")
         )
+        if not trip_id:
+            return JSONResponse({"ok": False, "error": "Trip yaratishda xato, qayta urining"})
 
-        # Haydovchilarga xabar yuborish
-        drivers = await db.get_available_drivers()
+        # FIX: birinchi 5 ta emas — ENG YAQIN haydovchilarga xabar beriladi
+        nearby = await db.get_nearby_drivers(loc.get("lat"), loc.get("lng"), limit=5)
         map_url = f"https://maps.google.com/?q={loc.get('lat')},{loc.get('lng')}"
-        for driver in drivers[:5]:
+        for driver in nearby:
             try:
                 await bot.send_message(
                     driver["user_id"],
-                    f"🚕 *Yangi yo'lovchi!*\n"
+                    f"🚕 *Yangi yo'lovchi!* ({driver['_distance_km']} km)\n"
                     f"📍 [{loc.get('address','Manzil')}]({map_url})\n"
                     f"Ilovada qabul qiling 👇",
                     parse_mode="Markdown"
@@ -402,14 +451,13 @@ async def accept_trip(request: Request):
         trip = await db.get_trip(trip_id)
         if not trip:
             return JSONResponse({"ok": False, "error": "Trip topilmadi"})
-        if trip["status"] != "searching":
-            return JSONResponse({"ok": False, "error": "Trip allaqachon olingan"})
 
-        await db.update_trip(trip_id,
-            driver_id  = driver_id,
-            status     = "matched",
-            matched_at = datetime.now()
-        )
+        # FIX: RACE CONDITION oldini olish — tekshirish va yozish BITTA
+        # atomic so'rovda bajariladi. Agar boshqa haydovchi bir zumda oldinroq
+        # olgan bo'lsa, bu False qaytaradi va hech qanday xabar yubormaydi.
+        won = await db.accept_trip_atomic(trip_id, driver_id)
+        if not won:
+            return JSONResponse({"ok": False, "error": "Afsuski, bu buyurtmani boshqa haydovchi allaqachon oldi"})
 
         driver = await db.get_user(driver_id)
         driver_name = driver.get("name","Haydovchi") if driver else "Haydovchi"
