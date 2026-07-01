@@ -49,15 +49,14 @@ class Database:
             self.pool = None
 
     async def _create_tables(self):
-        async with self.pool.acquire() as c:
-            await c.execute("""
-            CREATE TABLE IF NOT EXISTS users (
+        statements = [
+            """CREATE TABLE IF NOT EXISTS users (
                 user_id     BIGINT PRIMARY KEY,
                 name        TEXT,
                 phone       TEXT,
-                role        TEXT,           -- 'driver' | 'passenger'
-                seat_pref   TEXT,           -- passenger: 'front'|'back'
-                seat_count  INT,            -- driver: 1-4
+                role        TEXT,
+                seat_pref   TEXT,
+                seat_count  INT,
                 car_model   TEXT,
                 car_plate   TEXT,
                 loc_lat     DOUBLE PRECISION,
@@ -66,33 +65,29 @@ class Database:
                 registered  BOOLEAN DEFAULT FALSE,
                 created_at  TIMESTAMP DEFAULT NOW(),
                 updated_at  TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS trips (
+            )""",
+            """CREATE TABLE IF NOT EXISTS trips (
                 id          SERIAL PRIMARY KEY,
                 passenger_id BIGINT REFERENCES users(user_id),
                 driver_id   BIGINT REFERENCES users(user_id),
                 status      TEXT DEFAULT 'searching',
-                -- searching | matched | started | completed | cancelled
                 p_lat       DOUBLE PRECISION,
                 p_lng       DOUBLE PRECISION,
                 p_addr      TEXT,
-                rating      INT,            -- 1-5
+                rating      INT,
                 rating_comment TEXT,
                 created_at  TIMESTAMP DEFAULT NOW(),
                 matched_at  TIMESTAMP,
                 started_at  TIMESTAMP,
                 completed_at TIMESTAMP
-            );
-
-            CREATE TABLE IF NOT EXISTS user_stats (
+            )""",
+            """CREATE TABLE IF NOT EXISTS user_stats (
                 user_id             BIGINT PRIMARY KEY REFERENCES users(user_id),
                 false_cancel_count  INT DEFAULT 0,
                 sos_count           INT DEFAULT 0,
                 updated_at          TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS sos_incidents (
+            )""",
+            """CREATE TABLE IF NOT EXISTS sos_incidents (
                 id              SERIAL PRIMARY KEY,
                 user_id         BIGINT REFERENCES users(user_id),
                 location_lat    DOUBLE PRECISION,
@@ -101,9 +96,8 @@ class Database:
                 resolved        BOOLEAN DEFAULT FALSE,
                 resolved_at     TIMESTAMP,
                 created_at      TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS groups (
+            )""",
+            """CREATE TABLE IF NOT EXISTS groups (
                 id                      SERIAL PRIMARY KEY,
                 driver_id               BIGINT REFERENCES users(user_id),
                 region                  TEXT,
@@ -112,21 +106,25 @@ class Database:
                 front_seat_available    BOOLEAN DEFAULT TRUE,
                 status                  TEXT DEFAULT 'active',
                 created_at              TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_group_per_driver
-                ON groups (driver_id) WHERE status = 'active';
-
-            CREATE TABLE IF NOT EXISTS group_members (
+            )""",
+            # FIX: unik indeks yaratishdan OLDIN eski/takroriy faol
+            # guruhlarni tozalaymiz — aks holda indeks yaratilmay,
+            # butun sozlash to'xtab qolardi.
+            """UPDATE groups g SET status='stale'
+               WHERE status='active' AND id NOT IN (
+                   SELECT MAX(id) FROM groups WHERE status='active' GROUP BY driver_id
+               )""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_group_per_driver
+                ON groups (driver_id) WHERE status = 'active'""",
+            """CREATE TABLE IF NOT EXISTS group_members (
                 id              SERIAL PRIMARY KEY,
                 group_id        INT REFERENCES groups(id),
                 passenger_id    BIGINT REFERENCES users(user_id),
                 seat_position   TEXT,
                 status          TEXT DEFAULT 'confirmed',
                 added_at        TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS driver_offers (
+            )""",
+            """CREATE TABLE IF NOT EXISTS driver_offers (
                 id                  SERIAL PRIMARY KEY,
                 driver_id           BIGINT REFERENCES users(user_id),
                 passenger_id        BIGINT REFERENCES users(user_id),
@@ -134,15 +132,13 @@ class Database:
                 response_status     TEXT DEFAULT 'pending',
                 offer_expires_at    TIMESTAMP,
                 created_at          TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS passenger_queue (
+            )""",
+            """CREATE TABLE IF NOT EXISTS passenger_queue (
                 passenger_id        BIGINT PRIMARY KEY REFERENCES users(user_id),
                 is_seat_important   BOOLEAN DEFAULT FALSE,
                 created_at          TIMESTAMP DEFAULT NOW()
-            );
-
-            CREATE TABLE IF NOT EXISTS user_bans (
+            )""",
+            """CREATE TABLE IF NOT EXISTS user_bans (
                 id          SERIAL PRIMARY KEY,
                 user_id     BIGINT REFERENCES users(user_id),
                 ban_type    TEXT,
@@ -150,15 +146,24 @@ class Database:
                 ban_until   TIMESTAMP,
                 active      BOOLEAN DEFAULT TRUE,
                 created_at  TIMESTAMP DEFAULT NOW()
-            );
-
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE;
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP;
-            ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
-            ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
-            ALTER TABLE trips ADD COLUMN IF NOT EXISTS group_id INT REFERENCES groups(id);
-            """)
-        logger.info("✅ Jadvallar tayyor")
+            )""",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMP",
+            "ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION",
+            "ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION",
+            "ALTER TABLE trips ADD COLUMN IF NOT EXISTS group_id INT REFERENCES groups(id)",
+        ]
+        ok_count = 0
+        for stmt in statements:
+            try:
+                async with self.pool.acquire() as c:
+                    await c.execute(stmt)
+                ok_count += 1
+            except Exception as e:
+                # FIX: bitta bandning xatosi endi BOSHQA bandlarni va
+                # butun bazani ishdan chiqarmaydi — faqat log qilinadi.
+                logger.error(f"_create_tables statement failed (davom etamiz): {e}")
+        logger.info(f"✅ Jadvallar tayyor ({ok_count}/{len(statements)} band muvaffaqiyatli)")
 
     async def close(self):
         if self.pool:
