@@ -596,8 +596,13 @@ function pickRole(r) {
   S.role = r;
   document.getElementById("dCard").classList.toggle("sel", r === "driver");
   document.getElementById("pCard").classList.toggle("sel", r === "passenger");
-  document.getElementById("roleBtn").disabled = false;
+  // FIX: "roleBtn" degan tugma sahifada yo'q edi — shuning uchun bosgach
+  // JS xatosi bilan hech narsa bo'lmasdi. Endi kartani belgilangach,
+  // foydalanuvchi ko'rib ulgurishi uchun qisqa pauzadan so'ng avtomatik
+  // keyingi sahifaga (telefon) o'tadi — alohida "Davom etish" tugmasi shart emas.
+  setTimeout(function() { goPage("p1"); }, 250);
 }
+
 
 // ── TELEFON ─────────────────────────────────────────────────────────
 function fmtPhone(el) {
